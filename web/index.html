@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#173b32" />
+    <meta name="description" content="Veja onde a análise do CAR está parada e consulte dados públicos por imóvel, perfil ou território." />
+    <title>CAR em Recorte</title>
+    <link rel="stylesheet" href="/vendor/leaflet.css" />
+    <link rel="stylesheet" href="/app.css" />
+    <link rel="stylesheet" href="/radar.css" />
+    <script defer src="/vendor/leaflet.js"></script>
+    <script defer src="/app.js"></script>
+    <script defer src="/radar.js"></script>
+    <script defer src="/assistente.js"></script>
+    <script defer src="/conhecimento.js"></script>
+    <script defer src="/nav.js"></script>
+  </head>
+  <body>
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="CAR em Recorte, início">
+        <span class="brand-mark" aria-hidden="true"><span></span></span>
+        <span class="brand-copy"><strong>CAR em Recorte</strong><small>Radar da fila do CAR</small></span>
+      </a>
+      <nav class="area-nav" aria-label="Áreas da aplicação">
+        <a href="#radar" data-area="radar">Radar</a>
+        <a href="#consulta" data-area="consulta">Consulta</a>
+        <a href="#assistente" data-area="assistente">Assistente</a>
+        <a href="#conhecimento" data-area="conhecimento">Conhecimento</a>
+      </nav>
+      <div class="topbar-meta">
+        <span class="prototype-tag"><span class="tag-dot"></span>Dados públicos do SICAR</span>
+        <span class="state-tag"><span id="state-tag-name">Maranhão</span> <b id="state-tag-uf">MA</b></span>
+      </div>
+    </header>
+
+    <main id="view-radar" class="radar-view"></main>
+    <main id="view-assistente" hidden></main>
+    <main id="view-conhecimento" hidden></main>
+    <main id="view-consulta" class="workspace" hidden>
+      <aside class="search-panel" aria-label="Filtros da busca">
+        <div class="panel-intro">
+          <p class="eyebrow">CONSULTA AO CAR</p>
+          <h1>Só o dado que você precisa.</h1>
+          <p class="intro-copy">Busque um imóvel, confira uma lista ou recorte o território sem baixar a base inteira.</p>
+        </div>
+
+        <form id="code-form" class="code-form">
+          <label for="car-code">Código CAR</label>
+          <div class="code-row">
+            <input id="car-code" name="code" type="text" autocomplete="off" spellcheck="false" placeholder="MA-2100055-74B0F111…" />
+            <button id="code-button" type="submit">Abrir</button>
+          </div>
+          <button id="open-batch" class="batch-link" type="button">Consultar uma lista de códigos</button>
+        </form>
+        <div class="filter-divider"></div>
+
+        <form id="area-search-form" class="filters-form">
+          <label for="uf">Estado</label>
+          <select id="uf" name="uf" disabled>
+            <option value="MA">Carregando estados…</option>
+          </select>
+
+          <label for="municipality">Município</label>
+          <select id="municipality" name="municipality" disabled>
+            <option value="">Carregando municípios…</option>
+          </select>
+          <p id="municipality-count" class="field-hint">Os dados vêm dos serviços públicos do SICAR.</p>
+          <button id="all-state" class="text-button all-state" type="button" hidden>Buscar em todo o estado</button>
+
+          <div class="filter-divider"></div>
+          <div class="filter-heading"><span>Filtros</span><button id="reset-filters" class="text-button" type="button">Limpar</button></div>
+
+          <label for="status-filter">Situação cadastral</label>
+          <select id="status-filter" name="status">
+            <option value="">Todas as situações</option>
+            <option value="AT">Ativo</option>
+            <option value="PE">Pendente</option>
+            <option value="CA">Cancelado</option>
+            <option value="SU">Suspenso</option>
+          </select>
+
+          <label for="condition-filter">Condição do cadastro</label>
+          <select id="condition-filter" name="condition">
+            <option value="">Todas as condições</option>
+            <option value="aguardando_analise">Aguardando análise</option>
+            <option value="em_analise">Em análise</option>
+            <option value="analisado">Analisado (todos)</option>
+            <option value="analisado_notificacao">Analisado, aguardando notificação</option>
+            <option value="analisado_regularizacao">Analisado, aguardando regularização</option>
+            <option value="analisado_conforme">Analisado, em conformidade</option>
+            <option value="cancelado">Cancelado</option>
+          </select>
+
+          <label for="updated-since">Atualizado desde</label>
+          <input id="updated-since" name="updated_since" type="date" />
+
+          <label class="check-field" for="app-restore"><input id="app-restore" name="app_to_restore" type="checkbox" /> Somente com APP a recompor</label>
+
+          <span class="group-label">Área declarada (hectares)</span>
+          <div class="area-inputs">
+            <label class="sr-only" for="area-min">Área mínima em hectares</label>
+            <input id="area-min" type="number" min="0" step="0.1" placeholder="Mínima" />
+            <span aria-hidden="true">até</span>
+            <label class="sr-only" for="area-max">Área máxima em hectares</label>
+            <input id="area-max" type="number" min="0" step="0.1" placeholder="Máxima" />
+          </div>
+
+          <div id="selected-area" class="selected-area" hidden>
+            <span class="area-pin" aria-hidden="true"></span>
+            <span id="selected-area-label">Área desenhada no mapa</span>
+            <button id="clear-area" type="button" aria-label="Remover retângulo do mapa">×</button>
+          </div>
+
+          <button id="search-button" class="primary-button" type="submit" disabled>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"></circle><path d="m16 16 4.5 4.5"></path></svg>
+            <span id="search-label">Buscar imóveis</span>
+          </button>
+        </form>
+
+        <div id="notice" class="notice" role="status" aria-live="polite">
+          <span class="notice-mark" aria-hidden="true">i</span>
+          <span>Selecione um município para começar.</span>
+        </div>
+
+        <div id="source-note" class="source-note" hidden>
+          <p class="eyebrow">ORIGEM</p>
+          <p id="source-text"></p>
+        </div>
+
+        <footer class="panel-footer">
+          <span class="source-mark" aria-hidden="true">CAR</span>
+          <span>Serviços públicos do SICAR</span>
+        </footer>
+      </aside>
+
+      <section class="results-workspace" aria-label="Mapa e resultados da busca">
+        <section class="map-panel" aria-label="Mapa dos imóveis rurais">
+          <div class="map-caption">
+            <div class="map-caption-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="m4 6 5-2 6 2 5-2v14l-5 2-6-2-5 2z"></path><path d="M9 4v14m6-12v14"></path></svg>
+            </div>
+            <div><strong id="map-title">Mapa da área</strong><span id="map-subtitle">Selecione um município</span></div>
+          </div>
+          <div id="map" role="application" aria-label="Mapa interativo; arraste para desenhar um retângulo de busca"></div>
+          <div class="map-actions">
+            <button id="draw-area-button" type="button" class="map-action">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h16v16H4z" stroke-dasharray="3 2"></path><path d="M8 4v4M16 4v4M4 8h4M4 16h4"></path></svg>
+              Desenhar retângulo
+            </button>
+            <span id="draw-hint" class="draw-hint" hidden>Arraste no mapa para selecionar a área</span>
+          </div>
+          <div id="map-empty" class="map-empty">
+            <div class="empty-icon" aria-hidden="true">
+              <svg viewBox="0 0 48 48"><path d="m8 12 11-4 11 4 10-4v28l-10 4-11-4-11 4z"></path><path d="M19 8v28m11-24v28"></path><path d="M25 16h11v11H25z" stroke-dasharray="2 2"></path></svg>
+            </div>
+            <p class="empty-title">Escolha uma área para pesquisar</p>
+            <p class="empty-copy">Você pode filtrar o município inteiro ou desenhar um retângulo no mapa.</p>
+          </div>
+          <div class="map-legend">
+            <span class="legend-boundary"></span><span>Imóveis do CAR</span>
+            <span class="legend-separator"></span><span class="legend-selection"></span><span>Área de busca</span>
+          </div>
+          <div class="map-attribution">Geometrias públicas do CAR · SIRGAS 2000</div>
+        </section>
+
+        <section class="results-panel" aria-label="Tabela de imóveis encontrados">
+          <div class="results-heading">
+            <div>
+              <p class="eyebrow">RESULTADO DA CONSULTA</p>
+              <h2 id="results-title">Imóveis rurais</h2>
+              <p id="results-summary" class="results-summary">Aplique os filtros para listar os imóveis.</p>
+            </div>
+            <div class="export-actions">
+              <button id="export-csv" class="secondary-button" type="button" disabled>Baixar CSV</button>
+              <button id="export-geojson" class="secondary-button" type="button" disabled>Baixar GeoJSON</button>
+            </div>
+          </div>
+          <div class="metrics-grid" aria-label="Métricas desta consulta" aria-live="polite">
+            <div class="metric-card"><span>Registros encontrados</span><strong id="metric-records">—</strong><small id="metric-returned">— nesta página</small></div>
+            <div class="metric-card"><span>Exportação gerada</span><strong id="metric-export">Ainda não baixada</strong><small id="metric-export-detail">Baixe CSV ou GeoJSON para medir</small></div>
+            <div class="metric-card"><span>SICAR atualizado até</span><strong id="metric-base">—</strong><small id="metric-base-detail">Consultado ao vivo</small></div>
+            <div class="metric-card"><span>Tempo de resposta</span><strong id="metric-query-time">—</strong><small id="metric-cache">Medido neste navegador</small></div>
+            <div class="metric-card"><span>Chamadas poupadas ao SICAR</span><strong id="metric-saved">—</strong><small id="metric-saved-detail">Desde o início do cache</small></div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th scope="col">Código CAR</th><th scope="col">Situação</th><th scope="col">Área declarada</th><th scope="col">Condição</th><th scope="col">Atualização</th></tr></thead>
+              <tbody id="results-body"><tr class="empty-row"><td colspan="5">A tabela aparecerá aqui após a busca.</td></tr></tbody>
+            </table>
+          </div>
+          <div class="pagination">
+            <span id="page-summary">—</span>
+            <div><button id="previous-page" class="page-button" type="button" disabled>← Anterior</button><button id="next-page" class="page-button" type="button" disabled>Próxima →</button></div>
+          </div>
+          <p class="table-footnote">Os downloads incluem todos os resultados filtrados, não apenas a página aberta. Os dados são declaratórios e não atestam regularidade ambiental.</p>
+        </section>
+      </section>
+    </main>
+
+    <dialog id="property-dialog" class="property-dialog" aria-labelledby="property-dialog-title">
+      <div class="property-dialog-header">
+        <div>
+          <p class="eyebrow">DETALHES DO IMÓVEL</p>
+          <h2 id="property-dialog-title">Dados do CAR</h2>
+        </div>
+        <button id="property-dialog-close" class="dialog-close" type="button" aria-label="Fechar detalhes">×</button>
+      </div>
+      <div id="property-dialog-content" class="property-dialog-content" aria-live="polite"></div>
+    </dialog>
+
+    <dialog id="batch-dialog" class="property-dialog batch-dialog" aria-labelledby="batch-dialog-title">
+      <div class="property-dialog-header">
+        <div>
+          <p class="eyebrow">CONSULTA EM LOTE</p>
+          <h2 id="batch-dialog-title" class="batch-title">Confira uma lista de imóveis</h2>
+        </div>
+        <button id="batch-close" class="dialog-close" type="button" aria-label="Fechar consulta em lote">×</button>
+      </div>
+      <div class="property-dialog-content">
+        <form id="batch-form" class="batch-form">
+          <label for="batch-codes">Cole até 1.000 códigos CAR, ou envie um arquivo CSV ou TXT</label>
+          <textarea id="batch-codes" rows="5" spellcheck="false" placeholder="MA-2100055-74B0F111A29D4ECF9086AAED23B43274"></textarea>
+          <div class="batch-actions">
+            <label class="secondary-button file-button">Escolher arquivo<input id="batch-file" type="file" accept=".csv,.txt,text/csv,text/plain" /></label>
+            <button id="batch-sample" class="secondary-button" type="button">Usar imóveis da busca atual</button>
+            <span id="batch-count" class="batch-count">Nenhum código reconhecido</span>
+            <button id="batch-submit" class="primary-button" type="submit" disabled>Consultar lote</button>
+          </div>
+        </form>
+        <p id="batch-status" class="batch-status" role="status" aria-live="polite" hidden></p>
+        <div id="batch-results" hidden>
+          <div class="batch-summary" id="batch-summary"></div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th scope="col">Código CAR</th><th scope="col">Situação</th><th scope="col">Condição</th><th scope="col">Município</th><th scope="col">Área</th><th scope="col">APP</th><th scope="col">APP a recompor</th><th scope="col">Reserva Legal</th><th scope="col">Alertas</th></tr></thead>
+              <tbody id="batch-body"></tbody>
+            </table>
+          </div>
+          <div class="batch-footer">
+            <p id="batch-notice"></p>
+            <button id="batch-download" class="secondary-button" type="button">Baixar CSV</button>
+          </div>
+        </div>
+      </div>
+    </dialog>
+  </body>
+</html>

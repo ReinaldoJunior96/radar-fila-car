@@ -1,0 +1,12 @@
+# Ambiente local
+.env
+.env.demo
+.DS_Store
+__pycache__/
+*.pyc
+
+# Material local, fora do repositório público
+.backup-antes-sicar-ao-vivo/
+entrega/
+Dicionario_de_Dados_SICAR.pdf
+*.dump

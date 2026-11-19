@@ -1,0 +1,38 @@
+name: Testes
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_DB: car
+          POSTGRES_USER: carapp
+          POSTGRES_PASSWORD: car-local-only
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U carapp -d car"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://carapp:car-local-only@localhost:5432/car
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: api/requirements.txt
+      - run: pip install -r api/requirements.txt
+      - name: Testes da API
+        working-directory: api
+        run: python -m unittest discover -s tests -t . -v
+      - name: Sintaxe da interface
+        run: for arquivo in web/*.js; do node --check "$arquivo"; done

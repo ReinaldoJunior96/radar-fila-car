@@ -1,0 +1,71 @@
+limit_req_zone $binary_remote_addr zone=api_read:10m rate=${API_RATE_LIMIT};
+limit_req_zone $binary_remote_addr zone=api_batch:10m rate=${BATCH_RATE_LIMIT};
+limit_req_status 429;
+proxy_cache_path /var/cache/nginx/api levels=1:2 keys_zone=api_cache:32m max_size=1g inactive=1h use_temp_path=off;
+
+# O app fica atrás do proxy TLS na demonstração; o limite usa o IP real do visitante.
+set_real_ip_from 172.16.0.0/12;
+real_ip_header X-Forwarded-For;
+
+server {
+    listen 80;
+    server_name _;
+    root /usr/share/nginx/html;
+    index index.html;
+    client_max_body_size 256k;
+
+    gzip on;
+    gzip_proxied any;
+    gzip_comp_level 5;
+    gzip_min_length 1024;
+    gzip_types application/json application/geo+json text/csv text/css application/javascript;
+
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_read_timeout 180s;
+
+    location = /api/health {
+        proxy_pass http://api:8000;
+    }
+
+    location = /api/consultas/lote {
+        limit_req zone=api_batch burst=${BATCH_RATE_BURST} nodelay;
+        proxy_pass http://api:8000;
+    }
+
+    location = /api/consultas/lote.csv {
+        limit_req zone=api_batch burst=${BATCH_RATE_BURST} nodelay;
+        proxy_pass http://api:8000;
+    }
+
+    location /api/ {
+        limit_req zone=api_read burst=${API_RATE_BURST} nodelay;
+        proxy_pass http://api:8000;
+        proxy_cache api_cache;
+        proxy_cache_key $request_method$request_uri;
+        proxy_cache_methods GET HEAD;
+        proxy_cache_valid 200 1m;
+        proxy_cache_valid 404 1m;
+        proxy_cache_lock on;
+        proxy_cache_use_stale error timeout updating http_502 http_503 http_504;
+        proxy_cache_background_update on;
+        add_header X-Cache-Status $upstream_cache_status always;
+    }
+
+    location ~ ^/(docs|redoc|openapi\.json)$ {
+        proxy_pass http://api:8000;
+    }
+
+    # EMBED_ORIGINS lista os sites autorizados a incorporar o Radar.
+    location = /embed/radar {
+        add_header Content-Security-Policy "frame-ancestors ${EMBED_ORIGINS}" always;
+        try_files /embed-radar.html =404;
+    }
+
+    location / {
+        add_header X-Frame-Options "SAMEORIGIN" always;
+        try_files $uri $uri/ /index.html;
+    }
+}

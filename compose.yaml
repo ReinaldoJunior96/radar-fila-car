@@ -1,0 +1,97 @@
+name: inovacar
+
+services:
+  db:
+    build:
+      context: ./db
+    image: inovacar-postgis:local
+    environment:
+      POSTGRES_DB: car
+      POSTGRES_USER: carapp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-car-local-only}
+    volumes:
+      - car_pgdata:/var/lib/postgresql/data
+    ports:
+      - "127.0.0.1:55432:5432"
+    shm_size: 1gb
+    command:
+      - postgres
+      - -c
+      - shared_buffers=1GB
+      - -c
+      - effective_cache_size=3GB
+      - -c
+      - maintenance_work_mem=512MB
+      - -c
+      - work_mem=16MB
+      - -c
+      - max_wal_size=4GB
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U carapp -d car"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 15s
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./api
+    environment:
+      DATABASE_URL: postgresql://carapp:${POSTGRES_PASSWORD:-car-local-only}@db:5432/car
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-car-local-only}
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3)"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  # Rotina opcional: só consulta os serviços públicos quando este perfil é ligado.
+  sync:
+    build:
+      context: ./api
+    command: ["python", "-m", "app.sync_indice", "--loop"]
+    profiles: ["sync"]
+    environment:
+      DATABASE_URL: postgresql://carapp:${POSTGRES_PASSWORD:-car-local-only}@db:5432/car
+      SYNC_UFS: ${SYNC_UFS:-MA}
+      SYNC_INTERVALO_SEGUNDOS: ${SYNC_INTERVALO_SEGUNDOS:-10}
+      SYNC_ORCAMENTO_DIARIO: ${SYNC_ORCAMENTO_DIARIO:-600}
+      SYNC_JANELA_INICIO: ${SYNC_JANELA_INICIO:-20}
+      SYNC_JANELA_FIM_MINUTOS: ${SYNC_JANELA_FIM_MINUTOS:-30}
+      SYNC_LIMITE_ALTERACOES: ${SYNC_LIMITE_ALTERACOES:-5000}
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  web:
+    build:
+      context: ./web
+    environment:
+      # Sem limite prático no uso local; a demonstração pública usa compose.demo.yaml.
+      API_RATE_LIMIT: 10000r/s
+      API_RATE_BURST: "10000"
+      BATCH_RATE_LIMIT: 10000r/s
+      BATCH_RATE_BURST: "10000"
+      EMBED_ORIGINS: ${EMBED_ORIGINS:-'self'}
+    ports:
+      - "127.0.0.1:8080:80"
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  car_pgdata:
