@@ -5,9 +5,13 @@ import json
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query, Response
+from datetime import date
 
-from . import assistente, radar
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
+from pydantic import BaseModel, Field
+
+from . import assistente, credito, radar
+from .sicar import InvalidFilter
 
 router = APIRouter(prefix="/api", tags=["Radar"])
 CONHECIMENTO = Path(__file__).with_name("conhecimento.json")
@@ -26,13 +30,25 @@ def filtro_fila(
     area_max: float | None = Query(None, ge=0),
     grupo: int | None = Query(None, ge=0),
     com_sobreposicao: bool = False,
+    analisado_desde: date | None = Query(None, description="Condição mudou para analisado a partir desta data"),
+    alterado_desde: date | None = Query(None, description="Condição ou situação mudou a partir desta data"),
+    atualizado_desde: date | None = Query(None, description="Data de atualização no SICAR a partir desta data"),
+    oeste: float | None = None,
+    sul: float | None = None,
+    leste: float | None = None,
+    norte: float | None = None,
     ordem: str = "prioridade",
 ) -> radar.FiltroFila:
+    caixa = (oeste, sul, leste, norte)
+    if any(v is not None for v in caixa) and not all(v is not None for v in caixa):
+        raise InvalidFilter("Informe oeste, sul, leste e norte juntos.")
     return radar.FiltroFila(
         uf=uf, ibge=ibge, perfis=[item for item in (perfis or "").split(",") if item],
         condicao=condicao or None, status=status or None, tipo=tipo or None,
         prioridade_min=prioridade_min, anos_min=anos_min, area_min=area_min, area_max=area_max,
-        grupo=grupo, com_sobreposicao=com_sobreposicao, ordem=ordem,
+        grupo=grupo, com_sobreposicao=com_sobreposicao, analisado_desde=analisado_desde,
+        alterado_desde=alterado_desde, atualizado_desde=atualizado_desde,
+        bbox=caixa if all(v is not None for v in caixa) else None, ordem=ordem,
     )
 
 
@@ -44,6 +60,14 @@ def estados() -> dict[str, Any]:
 @router.get("/radar/resumo", summary="Indicadores da fila por UF ou município")
 def resumo(uf: str = "MA", ibge: int | None = Query(None, ge=1)) -> dict[str, Any]:
     return radar.resumo(uf, ibge)
+
+
+@router.get("/radar/recorte", summary="Indicadores do recorte filtrado (mesmos filtros da fila)")
+def recorte(
+    filtro: radar.FiltroFila = Depends(filtro_fila),
+    municipios: int = Query(10, ge=1, le=300, description="Quantos municípios devolver no ranking"),
+) -> dict[str, Any]:
+    return radar.recorte(filtro, municipios)
 
 
 @router.get("/radar/fila", summary="Imóveis filtrados por perfil, com os motivos")
@@ -78,6 +102,24 @@ def evolucao(uf: str = "MA", ibge: int | None = Query(None, ge=1)) -> dict[str, 
     return radar.evolucao(uf, ibge)
 
 
+@router.get("/radar/movimentos", summary="Linha do tempo das etapas e das mudanças detectadas")
+def movimentos(uf: str = "MA", ibge: int | None = Query(None, ge=1), dias: int = Query(90, ge=1, le=730)) -> dict[str, Any]:
+    return radar.movimentos(uf, ibge, dias)
+
+
+@router.get("/radar/imovel/{codigo}", summary="Dados do índice e histórico de um imóvel")
+def imovel(codigo: str) -> dict[str, Any]:
+    dados = radar.imovel(codigo.strip().upper())
+    if not dados:
+        raise HTTPException(status_code=404, detail="Imóvel fora do índice.")
+    return dados
+
+
+@router.get("/radar/mapa", summary="Limites dos imóveis do recorte, em GeoJSON, do índice espacial")
+def mapa(filtro: radar.FiltroFila = Depends(filtro_fila)) -> dict[str, Any]:
+    return radar.mapa(filtro)
+
+
 @router.get("/radar/grupos", summary="Padrões exploratórios encontrados por K-Means")
 def grupos(uf: str = "MA") -> dict[str, Any]:
     return radar.grupos(uf)
@@ -95,8 +137,37 @@ def status(response: Response) -> dict[str, Any]:
 
 
 @router.get("/assistente", summary="Responde perguntas em português usando o índice", tags=["Assistente"])
-def perguntar(q: str = Query(..., min_length=2, max_length=300), uf: str = "MA") -> dict[str, Any]:
-    return assistente.responder(q, uf)
+def perguntar(
+    q: str = Query(..., min_length=2, max_length=300),
+    uf: str = "MA",
+    contexto: str | None = Query(None, max_length=2000, description="Filtros da resposta anterior, em JSON"),
+) -> dict[str, Any]:
+    anterior = None
+    if contexto:
+        try:
+            anterior = json.loads(contexto)
+        except ValueError as exc:
+            raise InvalidFilter("Contexto inválido.") from exc
+    return assistente.responder(q, uf, anterior if isinstance(anterior, dict) else None)
+
+
+class PedidoCredito(BaseModel):
+    codigos: list[str] = Field(..., min_length=1, max_length=credito.LIMITE)
+
+
+@router.post("/credito/verificacao", summary="Pontos de atenção de até 1.000 imóveis", tags=["Crédito"])
+def verificar(pedido: PedidoCredito) -> dict[str, Any]:
+    return credito.verificar(pedido.codigos)
+
+
+@router.post("/credito/verificacao.csv", summary="Mesma verificação em CSV", tags=["Crédito"])
+def verificar_csv(pedido: PedidoCredito) -> Response:
+    corpo, total = credito.csv_verificacao(credito.verificar(pedido.codigos))
+    return Response(
+        "\ufeff" + corpo,
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="verificacao_credito_car.csv"', "X-Registros": str(total)},
+    )
 
 
 @router.get("/conhecimento", summary="Guias, glossário, metodologia e links oficiais", tags=["Conhecimento"])

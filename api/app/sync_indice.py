@@ -31,6 +31,8 @@ INTERVALO = float(os.environ.get("SYNC_INTERVALO_SEGUNDOS", "10"))
 JANELA_INICIO = int(os.environ.get("SYNC_JANELA_INICIO", "20"))
 JANELA_FIM_MINUTOS = int(os.environ.get("SYNC_JANELA_FIM_MINUTOS", "30"))
 LIMITE_ALTERACOES = int(os.environ.get("SYNC_LIMITE_ALTERACOES", "5000"))
+ORCAMENTO_MB_DIARIO = float(os.environ.get("SYNC_ORCAMENTO_MB_DIARIO", "300"))
+LOTE_GEOMETRIAS = 200
 MAX_FALHAS = 3
 Conexao = psycopg.Connection[Any]
 
@@ -53,6 +55,14 @@ def chamadas_de_hoje(conn: Conexao) -> int:
     inicio = agora_brasilia().replace(hour=0, minute=0, second=0, microsecond=0)
     row = conn.execute(
         "SELECT coalesce(sum(chamadas), 0) FROM sync_execucao WHERE iniciado_em >= %s", (inicio,)
+    ).fetchone()
+    return int(row[0])
+
+
+def bytes_de_hoje(conn: Conexao) -> int:
+    inicio = agora_brasilia().replace(hour=0, minute=0, second=0, microsecond=0)
+    row = conn.execute(
+        "SELECT coalesce(sum(bytes), 0) FROM sync_execucao WHERE iniciado_em >= %s", (inicio,)
     ).fetchone()
     return int(row[0])
 
@@ -80,7 +90,7 @@ def pausar(conn: Conexao, uf: str, horas: int, motivo: str) -> None:
 def marcar_estado(conn: Conexao, uf: str, **campos: Any) -> None:
     permitidos = {
         "carga_concluida_em", "marca", "ultimo_diario", "ultima_conferencia",
-        "indicadores_em", "retificacoes_em",
+        "indicadores_em", "retificacoes_em", "geometrias_em",
     }
     assert set(campos) <= permitidos
     assignments = ", ".join(f"{campo} = %({campo})s" for campo in campos)
@@ -210,7 +220,9 @@ def carregar_municipios(
             if chave in feitos:
                 continue
             itens = _com_tolerancia(execucao, lambda: fonte.cadastro_municipio(uf, municipio.ibge))
-            execucao.somar(indice.gravar_cadastro(conn, itens, (uf, municipio.ibge)))
+            execucao.somar(
+                indice.gravar_cadastro(conn, itens, (uf, municipio.ibge), historico=ciclo not in {"carga", "piloto"})
+            )
             conn.execute(
                 """INSERT INTO sync_checkpoint (uf, ciclo, chave) VALUES (%s, %s, %s)
                    ON CONFLICT DO NOTHING""",
@@ -314,7 +326,7 @@ def sincronizar_diario(conn: Conexao, fonte: FonteCar, uf: str, hoje: date | Non
         while True:
             pagina = _com_tolerancia(execucao, lambda: fonte.alterados(uf, desde, apos))
             if pagina:
-                execucao.somar(indice.gravar_cadastro(conn, pagina))
+                execucao.somar(indice.gravar_cadastro(conn, pagina, historico=True, dia=hoje))
                 execucao.salvar()
                 conn.commit()
             if len(pagina) < CHANGE_PAGE_SIZE:
@@ -346,7 +358,7 @@ def conferir_totais(conn: Conexao, fonte: FonteCar, uf: str) -> dict[str, Any]:
             total = _com_tolerancia(execucao, lambda: fonte.total_municipio(uf, municipio.ibge))
             if total != locais.get(municipio.ibge, 0):
                 itens = _com_tolerancia(execucao, lambda: fonte.cadastro_municipio(uf, municipio.ibge))
-                execucao.somar(indice.gravar_cadastro(conn, itens, (uf, municipio.ibge)))
+                execucao.somar(indice.gravar_cadastro(conn, itens, (uf, municipio.ibge), historico=True))
             conn.execute(
                 "INSERT INTO sync_checkpoint (uf, ciclo, chave) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
                 (uf, ciclo, str(municipio.ibge)),
@@ -356,6 +368,69 @@ def conferir_totais(conn: Conexao, fonte: FonteCar, uf: str) -> dict[str, Any]:
         marcar_estado(conn, uf, ultima_conferencia=date.today())
 
     return executar(conn, fonte, "conferencia", uf, None, tarefa)
+
+
+def atualizar_geometrias(conn: Conexao, fonte: FonteCar, uf: str, nome: str | None = None) -> dict[str, Any]:
+    """Carrega limites por município e, depois, só os dos imóveis alterados."""
+    ciclo = "geometrias:inicial"
+
+    def tarefa(execucao: Execucao) -> None:
+        municipios = _obter_municipios(conn, fonte, uf)
+        if nome:
+            municipios = [item for item in municipios if sicar.plain(item.nome) == sicar.plain(nome)]
+        feitos = {
+            row[0]
+            for row in conn.execute(
+                "SELECT chave FROM sync_checkpoint WHERE uf = %s AND ciclo = %s", (uf, ciclo)
+            ).fetchall()
+        }
+        pendentes = [item for item in municipios if str(item.ibge) not in feitos]
+        for municipio in pendentes:
+            itens = _com_tolerancia(execucao, lambda: fonte.geometrias_municipio(uf, municipio.ibge))
+            execucao.somar({"registros": len(itens), "alterados": indice.gravar_geometrias(conn, itens)})
+            conn.execute(
+                "INSERT INTO sync_checkpoint (uf, ciclo, chave) VALUES (%s, %s, %s) ON CONFLICT DO NOTHING",
+                (uf, ciclo, str(municipio.ibge)),
+            )
+            execucao.salvar()
+            conn.commit()
+        if nome or pendentes:
+            if not nome and _todos_concluidos(conn, uf, ciclo):
+                marcar_estado(conn, uf, geometrias_em=datetime.now(timezone.utc))
+            return
+        inicio = datetime.now(timezone.utc)
+        codigos = [row[0] for row in conn.execute(
+            """SELECT i.cod_imovel FROM indice_imovel AS i
+               LEFT JOIN geometria_imovel AS g USING (cod_imovel)
+               WHERE i.uf = %s AND i.alterado_em > coalesce(g.atualizado_em,
+                     (SELECT geometrias_em FROM sync_estado WHERE uf = %s))
+               ORDER BY i.cod_imovel""",
+            (uf, uf),
+        ).fetchall()]
+        for inicio_lote in range(0, len(codigos), LOTE_GEOMETRIAS):
+            lote = codigos[inicio_lote:inicio_lote + LOTE_GEOMETRIAS]
+            itens = _com_tolerancia(execucao, lambda: fonte.geometrias_codigos(uf, lote))
+            execucao.somar({"registros": len(itens), "alterados": indice.gravar_geometrias(conn, itens)})
+            execucao.salvar()
+            conn.commit()
+        marcar_estado(conn, uf, geometrias_em=inicio)
+
+    return executar(conn, fonte, "geometrias", uf, nome, tarefa)
+
+
+def _todos_concluidos(conn: Conexao, uf: str, ciclo: str) -> bool:
+    return not _ciclo_pendente(conn, uf, ciclo)
+
+
+def geometrias_pendentes(conn: Conexao, uf: str) -> bool:
+    if _ciclo_pendente(conn, uf, "geometrias:inicial"):
+        return True
+    return bool(conn.execute(
+        """SELECT EXISTS (SELECT 1 FROM indice_imovel AS i LEFT JOIN geometria_imovel AS g USING (cod_imovel)
+           WHERE i.uf = %s AND i.alterado_em > coalesce(g.atualizado_em,
+                 (SELECT geometrias_em FROM sync_estado WHERE uf = %s)))""",
+        (uf, uf),
+    ).fetchone()[0])
 
 
 def finalizar(conn: Conexao, uf: str) -> dict[str, Any]:
@@ -397,6 +472,8 @@ def proxima_tarefa(conn: Conexao, fonte: FonteCar, uf: str) -> dict[str, Any] | 
         return conferir_totais(conn, fonte, uf)
     if not retificacoes or (hoje - retificacoes).days >= 30:
         return atualizar_retificacoes(conn, fonte, uf)
+    if geometrias_pendentes(conn, uf):
+        return atualizar_geometrias(conn, fonte, uf)
     ciclo = f"recarga:{hoje:%Y-%m}"
     if _ciclo_pendente(conn, uf, ciclo):
         return carregar_municipios(conn, fonte, uf, ciclo)
@@ -405,7 +482,10 @@ def proxima_tarefa(conn: Conexao, fonte: FonteCar, uf: str) -> dict[str, Any] | 
 
 def criar_fonte(conn: Conexao, intervalo: float, limite: int | None = None) -> ServicosPublicosCar:
     restante = max(0, ORCAMENTO_DIARIO - chamadas_de_hoje(conn))
-    return ServicosPublicosCar(intervalo, restante if limite is None else min(limite, restante))
+    bytes_restantes = max(0, int(ORCAMENTO_MB_DIARIO * 1e6) - bytes_de_hoje(conn))
+    return ServicosPublicosCar(
+        intervalo, restante if limite is None else min(limite, restante), limite_bytes=bytes_restantes
+    )
 
 
 def loop(ufs: list[str], intervalo: float) -> None:
@@ -444,6 +524,7 @@ def main() -> None:
     parser.add_argument("--retificacoes", action="store_true")
     parser.add_argument("--diario", action="store_true")
     parser.add_argument("--conferir", action="store_true")
+    parser.add_argument("--geometrias", action="store_true")
     parser.add_argument("--recalcular", action="store_true")
     parser.add_argument("--loop", action="store_true")
     parser.add_argument("--intervalo", type=float, default=INTERVALO)
@@ -476,6 +557,8 @@ def main() -> None:
                     resultados.append(atualizar_indicadores(conn, fonte, uf))
                 if args.retificacoes:
                     resultados.append(atualizar_retificacoes(conn, fonte, uf, args.municipio))
+                if args.geometrias:
+                    resultados.append(atualizar_geometrias(conn, fonte, uf, args.municipio))
                 if args.diario:
                     resultados.append(sincronizar_diario(conn, fonte, uf))
                 if args.conferir:

@@ -1,7 +1,10 @@
 """Assistente em português, por regras. Só executa consultas permitidas no índice."""
 from __future__ import annotations
 
+import json
 import re
+from datetime import date, timedelta
+from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -115,6 +118,22 @@ def interpretar(pergunta: str, uf: str, municipios: list[dict[str, Any]]) -> Int
             filtro["tipo"] = codigo
             item.anotar("Tipo", radar.TIPOS[codigo])
             break
+    movimento = re.search(
+        r"(analisad\w*|mud\w* de (?:etapa|condicao|situacao)|atualizad\w*)\s+(?:no|nos|na|nas)\s+"
+        r"ultim[oa]s?\s+(?:(\d+)\s+)?(mes|meses|semanas?|dias?)", texto)
+    if movimento:
+        quantidade = int(movimento.group(2) or 1)
+        unidade = movimento.group(3)
+        dias = quantidade * (30 if unidade.startswith("mes") else 7 if unidade.startswith("semana") else 1)
+        desde = date.today() - timedelta(days=dias)
+        tipo = movimento.group(1)
+        campo, rotulo = (
+            ("analisado_desde", "Concluíram análise") if tipo.startswith("analisad")
+            else ("alterado_desde", "Mudaram de etapa") if tipo.startswith("mud")
+            else ("atualizado_desde", "Atualizados no SICAR")
+        )
+        filtro[campo] = desde.isoformat()
+        item.anotar(rotulo, f"desde {desde:%d/%m/%Y}")
     anos = re.search(rf"(?:ha|mais de|acima de|pelo menos|no minimo)\s+{NUMERO}\s+anos?", texto)
     if anos:
         filtro["anos_min"] = _numero(anos.group(1))
@@ -143,11 +162,77 @@ def interpretar(pergunta: str, uf: str, municipios: list[dict[str, Any]]) -> Int
     return item
 
 
-def responder(pergunta: str, uf: str) -> dict[str, Any]:
+CONTINUACAO = re.compile(r"^(e|so|somente|apenas|agora|desses|destes|deles|delas|dentre eles|entre eles|filtre|mas)\b")
+DEFINICAO = re.compile(
+    r"^(o que (e|sao|significa|significam|quer dizer)|que (e|sao)|qual (e )?o significado|significado de|defina|definicao de|explique|explica)\b"
+)
+AJUDA = re.compile(r"^(ajuda|socorro|como (funciona|usar|uso|voce funciona)|o que (voce|vc) (faz|sabe|responde))\b")
+CONHECIMENTO = Path(__file__).with_name("conhecimento.json")
+
+
+def _palavras(texto: str) -> set[str]:
+    return {palavra.rstrip("s") for palavra in re.findall(r"[a-z0-9_]+", _plain(texto)) if len(palavra) > 1}
+
+
+def _base_conhecimento() -> list[tuple[str, str, str]]:
+    dados = json.loads(CONHECIMENTO.read_text(encoding="utf-8"))
+    itens = [(g["termo"], g["definicao"], "Glossário") for g in dados["glossario"]]
+    itens += [(f"{c['campo']} {c['servico']}", c["descricao"], "Dicionário de dados") for c in dados["dicionario"]]
+    itens += [(p.rotulo, f"{p.descricao} Fonte: {p.fonte}. Peso {p.peso}.", "Perfis do Radar") for p in classificacao.PERFIS]
+    itens += [(f["pergunta"], f["resposta"], "Perguntas frequentes") for f in dados["faq"]]
+    return itens
+
+
+def definir(pergunta: str) -> dict[str, str] | None:
+    """Encontra o termo do glossário, do dicionário ou dos perfis mais parecido com a pergunta."""
+    alvo = _palavras(DEFINICAO.sub("", _plain(pergunta)))
+    melhor: tuple[float, tuple[str, str, str] | None] = (0.0, None)
+    for termo, texto, fonte in _base_conhecimento():
+        termo_palavras = _palavras(termo)
+        if not termo_palavras or not alvo:
+            continue
+        nota = len(alvo & termo_palavras) / len(termo_palavras | alvo)
+        if nota > melhor[0]:
+            melhor = (nota, (termo, texto, fonte))
+    if melhor[0] < 0.25 or not melhor[1]:
+        return None
+    termo, texto, fonte = melhor[1]
+    return {"termo": termo, "texto": texto, "fonte": fonte}
+
+
+def _mesclar(item: Interpretacao, contexto: dict[str, Any], municipios: list[dict[str, Any]]) -> None:
+    anteriores = dict(contexto.get("filtros") or {})
+    perfis = list(dict.fromkeys([*(anteriores.get("perfis") or []), *(item.filtro.get("perfis") or [])]))
+    item.filtro = {**anteriores, **item.filtro}
+    if perfis:
+        item.filtro["perfis"] = perfis
+    if not item.ibge and contexto.get("ibge"):
+        item.ibge = int(contexto["ibge"])
+        item.municipio = next((m["municipio"] for m in municipios if m["ibge"] == item.ibge), None)
+    item.entendido.insert(0, {"campo": "Continuação", "valor": "Filtros da pergunta anterior mantidos"})
+
+
+def responder(pergunta: str, uf: str, contexto: dict[str, Any] | None = None) -> dict[str, Any]:
     pergunta = pergunta.strip()
     uf = sicar.check_uf(uf)
-    municipios = radar.municipios(uf)
     base = {"pergunta": pergunta, "uf": uf, "exemplos": EXEMPLOS, "chamadas_sicar": 0, "aviso": radar.AVISO}
+    texto = " ".join(_plain(pergunta).split())
+    if AJUDA.search(texto):
+        return {
+            **base, "entendeu": True, "intencao": "ajuda", "contexto": contexto,
+            "resposta": "Respondo perguntas sobre a fila do CAR usando o índice local: contagens, listas e rankings "
+                        "por município, perfil, condição, situação, tempo, área e mudanças recentes. Também explico "
+                        "termos do CAR. Você pode refinar a pergunta anterior começando com “e”, “só” ou “agora”.",
+        }
+    if DEFINICAO.search(texto):
+        achado = definir(pergunta)
+        if achado:
+            return {
+                **base, "entendeu": True, "intencao": "conhecimento", "contexto": contexto,
+                "entendido": [{"campo": "Termo", "valor": achado["termo"]}],
+                "resposta": achado["texto"], "fonte": achado["fonte"],
+            }
+    municipios = radar.municipios(uf)
     if not municipios:
         return {**base, "entendeu": False, "resposta": f"O índice de {uf} ainda não foi carregado."}
     item = interpretar(pergunta, uf, municipios)
@@ -157,31 +242,47 @@ def responder(pergunta: str, uf: str) -> dict[str, Any]:
             "entendeu": False,
             "resposta": f"Esta consulta usa o índice de {uf}. O estado {item.uf_pedida} ainda não está disponível aqui.",
         }
+    if contexto and item.entendido and CONTINUACAO.search(texto):
+        _mesclar(item, contexto, municipios)
     if not item.entendido:
         return {
             **base,
             "entendeu": False,
-            "resposta": "Não identifiquei um filtro nessa pergunta. Tente citar um município, um perfil, uma condição ou um tempo de espera.",
+            "contexto": contexto,
+            "resposta": "Não identifiquei um filtro nessa pergunta. Tente citar um município, um perfil, uma condição, "
+                        "um tempo de espera ou peça a definição de um termo, como “o que é APP?”.",
         }
-    filtro = radar.FiltroFila(uf=uf, ibge=item.ibge, **item.filtro).validar()
-    parametros = {k: v for k, v in item.filtro.items()}
+    filtro = radar.FiltroFila(uf=uf, ibge=item.ibge, **{
+        chave: (date.fromisoformat(valor) if chave.endswith("_desde") and isinstance(valor, str) else valor)
+        for chave, valor in item.filtro.items()
+    }).validar()
+    parametros = dict(item.filtro)
     if item.ibge:
         parametros["ibge"] = item.ibge
-    saida = {**base, "entendeu": True, "entendido": item.entendido, "filtros": parametros, "intencao": item.intencao}
+    saida = {
+        **base, "entendeu": True, "entendido": item.entendido, "filtros": parametros, "intencao": item.intencao,
+        "contexto": {"filtros": item.filtro, "ibge": item.ibge},
+    }
     if item.intencao == "ranking":
-        filtro.ibge = item.ibge
         linhas = radar.ranking(filtro, item.limite)
         if linhas:
             primeiro = linhas[0]
             quantidade = f"{primeiro['total']:,}".replace(",", ".")
-            texto = f"{primeiro['municipio']} lidera, com {quantidade} imóveis nesse recorte."
+            texto_resposta = f"{primeiro['municipio']} lidera, com {quantidade} imóveis nesse recorte."
         else:
-            texto = "Nenhum município tem imóveis nesse recorte."
-        return {**saida, "resposta": texto, "ranking": linhas}
+            texto_resposta = "Nenhum município tem imóveis nesse recorte."
+        return {**saida, "resposta": texto_resposta, "ranking": linhas}
     resultado = radar.fila(filtro, 1, item.limite)
     total = f"{resultado['total']:,}".replace(",", ".")
     local = f" em {item.municipio}" if item.municipio else f" em {uf}"
-    texto = f"{total} imóveis{local} atendem a esses filtros."
+    texto_resposta = f"{total} imóveis{local} atendem a esses filtros."
+    if any(chave in item.filtro for chave in ("analisado_desde", "alterado_desde")):
+        with sicar.pool.connection() as conn:
+            desde = conn.execute("SELECT min(dia) AS d FROM historico_imovel WHERE uf = %s", (uf,)).fetchone()["d"]
+        texto_resposta += (
+            f" O histórico de mudanças começou em {desde:%d/%m/%Y}." if desde
+            else " O histórico de mudanças ainda não tem registros."
+        )
     if item.intencao == "contagem":
-        return {**saida, "resposta": texto, "total": resultado["total"], "itens": []}
-    return {**saida, "resposta": texto, "total": resultado["total"], "itens": resultado["itens"]}
+        return {**saida, "resposta": texto_resposta, "total": resultado["total"], "itens": []}
+    return {**saida, "resposta": texto_resposta, "total": resultado["total"], "itens": resultado["itens"]}

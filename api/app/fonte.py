@@ -57,6 +57,8 @@ class FonteCar(Protocol):
     def codigos_recompor(self, uf: str, municipio: str | None = None) -> set[str]: ...
     def sobreposicoes(self, uf: str, municipio: str | None = None) -> dict[str, set[str]]: ...
     def retificacoes(self, uf: str, municipio: str) -> dict[str, int]: ...
+    def geometrias_municipio(self, uf: str, ibge: int) -> list[tuple[str, dict[str, Any]]]: ...
+    def geometrias_codigos(self, uf: str, codigos: list[str]) -> list[tuple[str, dict[str, Any]]]: ...
 
 
 def _default_transport(url: str, data: bytes | None) -> tuple[int, bytes, int]:
@@ -88,9 +90,11 @@ class ServicosPublicosCar:
         limite_chamadas: int = 600,
         transport: Transport = _default_transport,
         dormir: Callable[[float], None] = time.sleep,
+        limite_bytes: int | None = None,
     ) -> None:
         self.intervalo = intervalo
         self.limite_chamadas = limite_chamadas
+        self.limite_bytes = limite_bytes
         self.transport = transport
         self.dormir = dormir
         self.chamadas = 0
@@ -99,6 +103,8 @@ class ServicosPublicosCar:
     def _chamar(self, url: str, data: bytes | None = None) -> bytes:
         if self.chamadas >= self.limite_chamadas:
             raise OrcamentoEsgotado(f"Limite de {self.limite_chamadas} chamadas atingido.")
+        if self.limite_bytes is not None and self.bytes_recebidos >= self.limite_bytes:
+            raise OrcamentoEsgotado(f"Limite de {self.limite_bytes / 1e6:.0f} MB atingido.")
         if self.chamadas:
             self.dormir(self.intervalo)
         self.chamadas += 1
@@ -245,3 +251,27 @@ class ServicosPublicosCar:
             if code:
                 result[code] = max(result.get(code, 0), int(row.get("nu_retificacao") or 0))
         return result
+
+    def _geometrias(self, uf: str, condicao: str, pagina: int) -> list[tuple[str, dict[str, Any]]]:
+        itens: list[tuple[str, dict[str, Any]]] = []
+        last: str | None = None
+        while True:
+            cql = condicao if last is None else f"{condicao} AND cod_imovel > {sicar.quote(last)}"
+            features = self._wfs(
+                sicar.SICAR_WFS,
+                typeNames=sicar.property_layer(uf),
+                propertyName="cod_imovel,geo_area_imovel",
+                cql_filter=cql,
+                sortBy="cod_imovel",
+                count=pagina,
+            )["features"]
+            itens.extend((f["properties"].get("cod_imovel"), f.get("geometry")) for f in features)
+            if len(features) < pagina:
+                return itens
+            last = features[-1]["properties"]["cod_imovel"]
+
+    def geometrias_municipio(self, uf: str, ibge: int) -> list[tuple[str, dict[str, Any]]]:
+        return self._geometrias(uf, f"cod_municipio_ibge={int(ibge)}", PAGE_SIZE)
+
+    def geometrias_codigos(self, uf: str, codigos: list[str]) -> list[tuple[str, dict[str, Any]]]:
+        return self._geometrias(uf, sicar._codes_cql(codigos), len(codigos) + 5)

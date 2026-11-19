@@ -18,6 +18,7 @@
       ["dicionario", "Dicionário de dados", `<p class="radar-nota">Baseado no Dicionário de Dados do SICAR. A coluna “No serviço” mostra o nome usado no WFS público.</p><div class="radar-tabela"><table><thead><tr><th>Campo</th><th>No serviço</th><th>Tipo</th><th>Descrição</th></tr></thead><tbody>${d.dicionario.map((c) => `<tr data-busca><td class="codigo">${esc(c.campo)}</td><td class="codigo">${esc(c.servico)}</td><td>${esc(c.tipo)}</td><td>${esc(c.descricao)}</td></tr>`).join("")}</tbody></table></div>`],
       ["metodologia", "Metodologia", `<div class="saber-grade">${d.metodologia.map((m) => `<article class="saber-item" data-busca><h3>${esc(m.titulo)}</h3><p>${esc(m.texto)}</p></article>`).join("")}</div>`],
       ["limites", "Limites", `<ul class="saber-lista">${d.limites.map((l) => `<li data-busca>${esc(l)}</li>`).join("")}</ul>`],
+      ["biblioteca", "Biblioteca técnica", `<div class="saber-grade">${(d.biblioteca || []).map(link).join("")}</div>`],
       ["legislacao", "Legislação", `<div class="saber-grade">${d.legislacao.map(link).join("")}</div>`],
       ["links", "Links oficiais", `<div class="saber-grade">${d.links.map(link).join("")}</div>`],
     ];

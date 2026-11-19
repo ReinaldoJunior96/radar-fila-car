@@ -6,7 +6,7 @@ from datetime import date, timedelta
 
 import psycopg
 
-from app import indice, sicar, sync_indice
+from app import indice, radar, sicar, sync_indice
 from app.fonte import CHANGE_PAGE_SIZE, FonteBloqueada, FonteIndisponivel, Municipio, OrcamentoEsgotado
 
 UF = "MA"
@@ -129,3 +129,32 @@ class Sincronizacao(unittest.TestCase):
         self.assertEqual(indice.recalcular_uf(self.conn, UF)["imoveis"], 4)
         self.assertEqual(self.valor("SELECT (dados->>'sem_analise')::int FROM resumo_municipio WHERE ibge = 0"), 4)
         self.assertEqual(self.valor("SELECT sum(total)::int FROM snapshot_municipio"), 4)
+
+    def test_historico_registra_mudanca_diaria_e_nao_a_carga(self):
+        self.carga(FonteFalsa(self.base))
+        self.assertEqual(self.valor("SELECT count(*) FROM historico_imovel"), 0)
+        origem = FonteFalsa(self.base)
+        origem.total_mudancas = 1
+        origem.alterados_lista = [imovel("C", 2, "Analisado, em conformidade com a Lei nº 12.651/2012")]
+        dia = date.today() + timedelta(days=1)
+        sync_indice.sincronizar_diario(self.conn, origem, UF, dia)
+        evento = self.conn.execute(
+            "SELECT evento, condicao_anterior, condicao_nova, dia FROM historico_imovel WHERE cod_imovel = 'C'").fetchone()
+        self.assertEqual(evento[:2], ("condicao", "aguardando_analise"))
+        self.assertTrue(evento[2].startswith("analisado"))
+        self.assertEqual(evento[3], dia)
+        filtro = radar.FiltroFila(uf=UF, analisado_desde=dia - timedelta(days=30)).validar()
+        where, valores = filtro.where()
+        codigos = [l[0] for l in self.conn.execute(f"SELECT cod_imovel FROM indice_imovel WHERE {where}", valores)]
+        self.assertEqual(codigos, ["C"])
+
+    def test_limite_gravado_e_filtro_por_area_do_mapa(self):
+        self.carga(FonteFalsa(self.base))
+        quadrado = lambda x, y: {"type": "Polygon", "coordinates": [[[x, y], [x + .01, y], [x + .01, y + .01], [x, y + .01], [x, y]]]}
+        gravados = indice.gravar_geometrias(self.conn, [("A", quadrado(-44.0, -3.0)), ("C", quadrado(-45.0, -4.0)), ("FORA", quadrado(-44.0, -3.0))])
+        self.assertEqual(gravados, 2)
+        self.assertEqual(self.valor("SELECT ST_SRID(geom) FROM geometria_imovel WHERE cod_imovel = 'A'"), 4674)
+        filtro = radar.FiltroFila(uf=UF, bbox=(-44.1, -3.1, -43.9, -2.9)).validar()
+        where, valores = filtro.where()
+        codigos = [l[0] for l in self.conn.execute(f"SELECT cod_imovel FROM indice_imovel WHERE {where}", valores)]
+        self.assertEqual(codigos, ["A"])

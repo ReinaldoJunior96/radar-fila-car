@@ -12,6 +12,7 @@ services:
     volumes:
       - car_demo_pgdata:/var/lib/postgresql/data
     shm_size: 512mb
+    mem_limit: ${DB_MEM_LIMIT:-1536m}
     command:
       - postgres
       - -c
@@ -37,6 +38,7 @@ services:
       DATABASE_URL: postgresql://carapp:${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env.demo}@db:5432/car
       DB_POOL_MAX_SIZE: "5"
       DB_STATEMENT_TIMEOUT_MS: "10000"
+    mem_limit: ${API_MEM_LIMIT:-512m}
     depends_on:
       db:
         condition: service_healthy
@@ -54,6 +56,8 @@ services:
       SYNC_JANELA_INICIO: ${SYNC_JANELA_INICIO:-20}
       SYNC_JANELA_FIM_MINUTOS: ${SYNC_JANELA_FIM_MINUTOS:-30}
       SYNC_LIMITE_ALTERACOES: ${SYNC_LIMITE_ALTERACOES:-5000}
+      SYNC_ORCAMENTO_MB_DIARIO: ${SYNC_ORCAMENTO_MB_DIARIO:-300}
+    mem_limit: ${SYNC_MEM_LIMIT:-1536m}
     depends_on:
       db:
         condition: service_healthy
@@ -68,12 +72,17 @@ services:
       BATCH_RATE_LIMIT: ${BATCH_RATE_LIMIT:-2r/s}
       BATCH_RATE_BURST: ${BATCH_RATE_BURST:-5}
       EMBED_ORIGINS: ${EMBED_ORIGINS:-'self'}
+    mem_limit: 128m
+    # Só para quem já tem outro proxy na VPS: expõe o site apenas na própria máquina.
+    ports:
+      - "127.0.0.1:${DEMO_WEB_PORT:-8088}:80"
     depends_on:
       - api
     restart: unless-stopped
 
   caddy:
     image: caddy:2.10-alpine
+    mem_limit: 128m
     environment:
       DEMO_SITE: ${DEMO_SITE:?defina DEMO_SITE no .env.demo}
     volumes:

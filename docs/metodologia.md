@@ -19,3 +19,13 @@ K-Means com variáveis padronizadas: área e módulos em escala logarítmica, an
 
 ## Assistente
 Interpreta a pergunta por regras e transforma o texto em filtros permitidos. Não usa modelo generativo e não escreve SQL a partir do texto.
+Mantém o contexto da pergunta anterior: “e só em Itapecuru Mirim?” reaproveita os filtros já entendidos. Perguntas como “o que é módulo fiscal?” são respondidas com o glossário, o dicionário de dados e os perfis da central de conhecimento, sempre com a fonte.
+
+## Histórico e linha do tempo
+O SICAR público não informa a data em que cada imóvel mudou de etapa. A partir da primeira atualização diária, a rotina registra em `historico_imovel` cada entrada, saída, mudança de condição e mudança de situação, com o dia em que foi vista. A carga inicial não gera eventos, para não confundir o primeiro retrato com mudanças. O filtro “concluíram análise nos últimos 30 dias” usa esse histórico. A linha do tempo combina o histórico com a fotografia diária de cada etapa.
+
+## Verificação para crédito
+Cada perfil vira um ponto de atenção de nível alto, atenção ou informativo, com a fonte. Alto: cadastro cancelado ou suspenso, sobreposição com área embargada ou terra indígena. O resultado do imóvel é o do ponto mais grave. Códigos de estados fora do índice são buscados ao vivo e recebem o aviso de que os indicadores ambientais não foram verificados. A verificação não substitui as consultas exigidas pelas normas de crédito rural.
+
+## Índice espacial
+Os limites são simplificados com tolerância de 0,00002 grau, cerca de 2 metros, corrigidos com `ST_MakeValid` e guardados em SIRGAS 2000 (EPSG:4674) com índice GiST. Em Itapecuru Mirim, a soma das áreas dos limites ficou 0,06% acima da soma das áreas declaradas. O filtro por área do mapa usa `ST_Intersects` com o retângulo visível.

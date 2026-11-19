@@ -50,7 +50,7 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     sicar.pool.open()
     sicar.ensure_schema()
     with sicar.pool.connection() as conn:
-        pronto = conn.execute("SELECT to_regclass('public.indice_grupo') AS tabela").fetchone()["tabela"]
+        pronto = conn.execute("SELECT to_regclass('public.geometria_imovel') AS tabela").fetchone()["tabela"]
         if not pronto:
             indice.criar_esquema(conn)
     yield

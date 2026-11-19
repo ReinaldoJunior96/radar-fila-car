@@ -23,6 +23,7 @@ FAIXAS = [("ate_1", 0, 1), ("1_3", 1, 3), ("3_5", 3, 5), ("5_10", 5, 10), ("10_m
 
 
 def criar_esquema(conn: psycopg.Connection[Any]) -> None:
+    conn.execute("CREATE EXTENSION IF NOT EXISTS postgis")
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS indice_imovel (
@@ -83,6 +84,18 @@ def criar_esquema(conn: psycopg.Connection[Any]) -> None:
             uf text NOT NULL, ibge integer NOT NULL, municipio text NOT NULL,
             lon double precision, lat double precision, dados jsonb NOT NULL,
             gerado_em timestamptz NOT NULL DEFAULT now(), PRIMARY KEY (uf, ibge))""",
+        """CREATE TABLE IF NOT EXISTS historico_imovel (
+            id bigserial PRIMARY KEY, cod_imovel text NOT NULL, uf text NOT NULL, ibge integer NOT NULL,
+            dia date NOT NULL, evento text NOT NULL, condicao_anterior text, condicao_nova text,
+            status_anterior text, status_novo text, registrado_em timestamptz NOT NULL DEFAULT now())""",
+        "CREATE INDEX IF NOT EXISTS historico_imovel_codigo_idx ON historico_imovel (cod_imovel, dia)",
+        "CREATE INDEX IF NOT EXISTS historico_imovel_dia_idx ON historico_imovel (uf, dia, evento, condicao_nova)",
+        """CREATE TABLE IF NOT EXISTS geometria_imovel (
+            cod_imovel text PRIMARY KEY, uf text NOT NULL, ibge integer NOT NULL,
+            geom geometry(MultiPolygon, 4674) NOT NULL, atualizado_em timestamptz NOT NULL DEFAULT now())""",
+        "CREATE INDEX IF NOT EXISTS geometria_imovel_gix ON geometria_imovel USING gist (geom)",
+        "CREATE INDEX IF NOT EXISTS geometria_imovel_mun_idx ON geometria_imovel (uf, ibge)",
+        "ALTER TABLE sync_estado ADD COLUMN IF NOT EXISTS geometrias_em timestamptz",
         """CREATE TABLE IF NOT EXISTS snapshot_municipio (
             dia date NOT NULL, uf text NOT NULL, ibge integer NOT NULL, condicao_grupo text NOT NULL,
             total integer NOT NULL, PRIMARY KEY (dia, uf, ibge, condicao_grupo))""",
@@ -124,9 +137,18 @@ def _linha(item: dict[str, Any]) -> tuple[Any, ...] | None:
 
 
 def gravar_cadastro(
-    conn: psycopg.Connection[Any], itens: Iterable[dict[str, Any]], remover_ibge: tuple[str, int] | None = None
+    conn: psycopg.Connection[Any],
+    itens: Iterable[dict[str, Any]],
+    remover_ibge: tuple[str, int] | None = None,
+    historico: bool = False,
+    dia: date | None = None,
 ) -> dict[str, int]:
-    """Atualiza imóveis e, em carga completa de município, remove os que sumiram."""
+    """Atualiza imóveis e, em carga completa de município, remove os que sumiram.
+
+    Com `historico`, registra cada imóvel novo, alterado ou removido. A carga inicial não
+    registra, porque ainda não existe estado anterior para comparar.
+    """
+    dia = dia or date.today()
     linhas = {row[0]: row for row in map(_linha, itens) if row}
     columns = ", ".join(COLUNAS)
     with conn.cursor() as cursor:
@@ -144,6 +166,20 @@ def gravar_cadastro(
                LEFT JOIN indice_imovel AS i USING (cod_imovel)"""
         )
         novos, alterados = cursor.fetchone()
+        if historico:
+            cursor.execute(
+                """INSERT INTO historico_imovel (cod_imovel, uf, ibge, dia, evento, condicao_anterior,
+                                                 condicao_nova, status_anterior, status_novo)
+                   SELECT e.cod_imovel, e.uf, e.ibge, %s,
+                          CASE WHEN i.cod_imovel IS NULL THEN 'novo'
+                               WHEN i.condicao_grupo IS DISTINCT FROM e.condicao_grupo THEN 'condicao'
+                               WHEN i.status IS DISTINCT FROM e.status THEN 'situacao'
+                               ELSE 'cadastro' END,
+                          i.condicao_grupo, e.condicao_grupo, i.status, e.status
+                   FROM entrada_indice AS e LEFT JOIN indice_imovel AS i USING (cod_imovel)
+                   WHERE i.cod_imovel IS NULL OR i.hash <> e.hash""",
+                (dia,),
+            )
         updates = ", ".join(f"{column} = excluded.{column}" for column in COLUNAS[1:])
         cursor.execute(
             f"""INSERT INTO indice_imovel ({columns})
@@ -154,6 +190,15 @@ def gravar_cadastro(
         )
         removidos = 0
         if remover_ibge:
+            if historico:
+                cursor.execute(
+                    """INSERT INTO historico_imovel (cod_imovel, uf, ibge, dia, evento, condicao_anterior, status_anterior)
+                       SELECT i.cod_imovel, i.uf, i.ibge, %s, 'removido', i.condicao_grupo, i.status
+                       FROM indice_imovel AS i
+                       WHERE i.uf = %s AND i.ibge = %s
+                         AND NOT EXISTS (SELECT 1 FROM entrada_indice AS e WHERE e.cod_imovel = i.cod_imovel)""",
+                    (dia, *remover_ibge),
+                )
             cursor.execute(
                 """DELETE FROM indice_imovel AS i
                    WHERE i.uf = %s AND i.ibge = %s
@@ -163,6 +208,30 @@ def gravar_cadastro(
             removidos = cursor.rowcount
         cursor.execute("DROP TABLE entrada_indice")
     return {"registros": len(linhas), "novos": novos, "alterados": alterados, "removidos": removidos}
+
+
+def gravar_geometrias(conn: psycopg.Connection[Any], itens: Iterable[tuple[str, dict[str, Any]]]) -> int:
+    """Grava limites simplificados (cerca de 2 m) com índice espacial. Só para imóveis já indexados."""
+    with conn.cursor() as cursor:
+        cursor.execute("CREATE TEMP TABLE entrada_geometria (codigo text, geojson text) ON COMMIT DROP")
+        with cursor.copy("COPY entrada_geometria FROM STDIN") as copy:
+            for codigo, geometria in itens:
+                if codigo and geometria:
+                    copy.write_row((codigo, json.dumps(geometria)))
+        cursor.execute(
+            """INSERT INTO geometria_imovel (cod_imovel, uf, ibge, geom)
+               SELECT codigo, uf, ibge, geom FROM (
+                   SELECT e.codigo, i.uf, i.ibge,
+                          ST_Multi(ST_CollectionExtract(ST_MakeValid(ST_SimplifyPreserveTopology(
+                              ST_SetSRID(ST_GeomFromGeoJSON(e.geojson), 4674), 0.00002)), 3)) AS geom
+                   FROM entrada_geometria AS e JOIN indice_imovel AS i ON i.cod_imovel = e.codigo
+               ) AS g WHERE NOT ST_IsEmpty(geom)
+               ON CONFLICT (cod_imovel) DO UPDATE SET geom = excluded.geom, uf = excluded.uf,
+                 ibge = excluded.ibge, atualizado_em = now()"""
+        )
+        gravados = cursor.rowcount
+        cursor.execute("DROP TABLE entrada_geometria")
+    return gravados
 
 
 def gravar_municipios(conn: psycopg.Connection[Any], uf: str, itens: list[Municipio]) -> None:

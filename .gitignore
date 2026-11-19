@@ -10,3 +10,7 @@ __pycache__/
 entrega/
 Dicionario_de_Dados_SICAR.pdf
 *.dump
+
+# Roteiro pessoal de apresentação
+APRESENTACAO.md
+notas/

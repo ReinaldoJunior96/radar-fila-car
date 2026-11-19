@@ -24,11 +24,12 @@ No Maranhão, em 18/11/2026:
 
 | Área | O que entrega |
 |---|---|
-| **Radar** | Etapas da análise, tempo desde a criação, anos de cadastro, mapa, ranking de municípios, lista priorizada e CSV |
+| **Radar** | Etapas da análise, tempo desde a criação, linha do tempo, mapa com os limites dos imóveis, filtro pela área do mapa, ranking de municípios, lista priorizada e CSV |
+| **Crédito** | Verificação de até 1.000 códigos CAR com pontos de atenção por nível e CSV |
 | **Perfis** | 20 perfis com regra, fonte e peso públicos, além de prioridade sugerida de 0 a 100 |
 | **Padrões** | Agrupamento K-Means exploratório, com qualidade e estabilidade informadas |
-| **Assistente** | Perguntas em português, com os filtros entendidos à vista e sem modelo generativo |
-| **Conhecimento** | Guias, glossário, dicionário de dados, metodologia, limites, legislação e links oficiais |
+| **Assistente** | Conversa em português que lembra a pergunta anterior, mostra os filtros entendidos e explica termos, sem modelo generativo |
+| **Conhecimento** | Guias, glossário, dicionário de dados, metodologia, limites, biblioteca técnica, legislação e links oficiais |
 | **Consulta** | Imóvel, lote de até 1.000 códigos, filtros, mapa, CSV e GeoJSON sob demanda |
 | **Integração** | API documentada, versão incorporável e origem de dados substituível |
 
@@ -40,14 +41,14 @@ No Maranhão, em 18/11/2026:
     <td width="50%"><img src="docs/img/territorio.jpg" alt="Mapa e ranking de municípios" /></td>
   </tr>
   <tr>
+    <td><img src="docs/img/credito.jpg" alt="Verificação de imóveis para crédito rural" /></td>
     <td><img src="docs/img/assistente.jpg" alt="Assistente respondendo uma pergunta em português" /></td>
-    <td><img src="docs/img/conhecimento.jpg" alt="Central de conhecimento" /></td>
   </tr>
 </table>
 
 ## Como o SICAR é preservado
 
-As telas leem um índice local, sem geometrias. Só a rotina de sincronização consulta os serviços públicos, e com limites.
+As telas leem um índice local, com atributos e limites simplificados. Só a rotina de sincronização consulta os serviços públicos, e com limites.
 
 ```text
 Serviços públicos do SICAR ──(rotina com orçamento)──> índice local ──> Radar, Assistente, API e embed
@@ -59,7 +60,8 @@ Serviços públicos do SICAR ──(rotina com orçamento)──> índice local 
 |---|---|---|
 | Abrir e filtrar o Radar, usar o Assistente e a Central | Índice local | Nenhuma |
 | Abrir a Consulta ou o cadastro completo de um imóvel | Serviços públicos, com cache | Sob demanda |
-| Atualizar o índice | Rotina controlada | Até 600 por dia, por padrão |
+| Verificar imóveis para crédito | Índice local | Nenhuma para estados indexados |
+| Atualizar o índice | Rotina controlada | Até 600 chamadas e 300 MB por dia, por padrão |
 
 A rotina faz uma chamada por vez, espera 10 segundos entre elas, roda das 20:00 às 00:30, retoma de onde parou e pausa se a fonte recusar o acesso. Ela ignora datas alteradas em massa quando o conteúdo do cadastro não mudou.
 
@@ -75,6 +77,8 @@ Maranhão, em 18/11/2026, em ambiente local:
 | Atualização diária | 2 chamadas e 27 KB |
 | Leitura do Radar | 300 requisições e nenhuma chamada ao SICAR |
 | Resposta mediana | Resumo em 2,4 ms, fila com perfis em 22,7 ms e assistente em 196,7 ms |
+| Crédito | 1.000 códigos em 31 ms, nenhuma chamada ao SICAR |
+| Índice espacial | Itapecuru Mirim: 4.967 limites em 1 chamada e 581 KB; área do mapa em 12 ms no banco |
 | Índice | 424 MB, com os índices do banco |
 | Agrupamento | 7 grupos, silhueta de 0,33 e estabilidade de 0,74 |
 
@@ -118,10 +122,13 @@ docker compose --profile sync up -d sync
 | Rota | Uso |
 |---|---|
 | `GET /api/radar/resumo?uf=MA` | Indicadores da UF ou do município |
-| `GET /api/radar/fila` | Imóveis por perfil, condição, situação, tipo, tempo, área e grupo |
+| `GET /api/radar/fila` | Imóveis por perfil, condição, situação, tipo, tempo, área, grupo, movimento recente e área do mapa |
 | `GET /api/radar/fila/export` | CSV da fila, até 50.000 imóveis |
 | `GET /api/radar/municipios` | Indicadores por município |
-| `GET /api/radar/evolucao` | Fotografias diárias desde a primeira sincronização |
+| `GET /api/radar/movimentos` | Linha do tempo por etapa e mudanças registradas por dia |
+| `GET /api/radar/imovel/{codigo}` | Histórico de um imóvel no índice |
+| `GET /api/radar/mapa` | Limites em GeoJSON por município ou área do mapa |
+| `POST /api/credito/verificacao` | Até 1.000 códigos para crédito rural, também em `.csv` |
 | `GET /api/radar/grupos` | Padrões encontrados pelo agrupamento |
 | `GET /api/perfis` | Regras, fontes e pesos dos perfis |
 | `GET /api/assistente?q=...` | Pergunta em português |
@@ -157,7 +164,8 @@ api/app/
   indice.py          tabelas, gravação, resumos e fotografias diárias
   classificacao.py   perfis e prioridade sugerida
   agrupamento.py     K-Means exploratório
-  radar.py           consultas do Radar
+  radar.py           consultas do Radar, linha do tempo e mapa
+  credito.py         verificação para crédito rural
   assistente.py      interpretação das perguntas
   sicar.py           consulta sob demanda com cache
   main.py            API FastAPI
@@ -174,14 +182,14 @@ docker compose run --rm --no-deps -v "$PWD/api/tests:/app/tests:ro" -e PYTHONPAT
   python -m unittest discover -s tests -t .
 ```
 
-Os 26 testes cobrem perfis, hash de mudanças, assistente, proteção contra bloqueio, orçamento, paginação, retomada, conferência de remoções e atualização em massa.
+Os 34 testes cobrem perfis, hash de mudanças, assistente e conversa, crédito, histórico, índice espacial, proteção contra bloqueio, orçamento, paginação, retomada, conferência de remoções e atualização em massa.
 
 ## Limites conhecidos
 
 - O Radar mostra a última sincronização, não o dado do instante.
 - O tempo de fila é aproximado pela data de criação, pois os dados públicos não trazem a entrada em cada etapa.
 - Os perfis e pesos precisam de revisão por especialistas.
-- A linha do tempo começa na primeira sincronização. O índice medido cobre o Maranhão.
+- O histórico de mudanças começa na primeira atualização diária, pois o SICAR público não informa a data das análises. O índice medido cobre o Maranhão.
 - A escala nacional deve usar acesso interno autorizado pelo MGI.
 - A integração ao portal oficial depende de decisão do governo.
 
@@ -191,6 +199,8 @@ Os 26 testes cobrem perfis, hash de mudanças, assistente, proteção contra blo
 - [Metodologia](docs/metodologia.md)
 - [Operação](docs/operacao.md)
 - [Integração com o portal do CAR](docs/integracao-mgi.md)
+- [Conformidade: LGPD, e-PING, segurança e acessibilidade](docs/conformidade.md)
+- [Como cada item do Desafio 3 é atendido](docs/desafio3.md)
 - [Como contribuir](CONTRIBUTING.md)
 - [Segurança](SECURITY.md)
 

@@ -18,7 +18,7 @@ EMBED_ORIGINS="'self' https://www.car.gov.br https://consulta.car.gov.br"
 ```
 
 ## Contrato da fonte
-Uma nova fonte implementa `municipios`, `cadastro_municipio`, `total_municipio`, `total_alterados`, `alterados`, `codigos_recompor`, `sobreposicoes` e `retificacoes`, definidos em `api/app/fonte.py`. Radar, classificação e API não mudam.
+Uma nova fonte implementa `municipios`, `cadastro_municipio`, `total_municipio`, `total_alterados`, `alterados`, `codigos_recompor`, `sobreposicoes`, `retificacoes`, `geometrias_municipio` e `geometrias_codigos`, definidos em `api/app/fonte.py`. Radar, classificação e API não mudam.
 
 ## Dados desejáveis da fonte interna
 - Data de entrada em cada etapa da análise, para medir o tempo real de fila.

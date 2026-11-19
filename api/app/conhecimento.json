@@ -1,54 +1,270 @@
 {
-  "atualizado_em": "2026-11-18",
+  "atualizado_em": "2026-11-19",
   "guias": [
-    {"titulo": "Entender a fila do meu município", "passos": ["Abra o Radar e escolha o estado e o município.", "Veja quantos cadastros estão sem análise concluída e há quanto tempo.", "Clique em um perfil para listar os imóveis correspondentes.", "Abra uma linha para ver os motivos e, se precisar, o cadastro completo."]},
-    {"titulo": "Montar uma lista de trabalho", "passos": ["Combine perfis, condição, situação, tipo e tempo desde a criação.", "Escolha a ordem: prioridade sugerida, mais antigos ou maiores áreas.", "Baixe o CSV. O arquivo traz os perfis de cada imóvel."]},
-    {"titulo": "Perguntar em português", "passos": ["Abra o Assistente e escreva a pergunta com município, perfil, condição ou tempo.", "Confira os filtros que o sistema entendeu.", "Abra o resultado no Radar para continuar a análise."]},
-    {"titulo": "Consultar imóveis e camadas", "passos": ["Abra a aba Consulta para buscar por código, lista de códigos, município ou área desenhada.", "Essa aba consulta os serviços públicos sob demanda e reaproveita respostas guardadas."]},
-    {"titulo": "Usar a API", "passos": ["A documentação interativa está em /docs.", "Comece por /api/radar/resumo?uf=MA e /api/radar/fila?uf=MA&perfis=fila_5_anos.", "As rotas do Radar leem apenas o índice local."]}
+    {
+      "titulo": "Entender a fila do meu município",
+      "passos": [
+        "Abra o Radar e escolha o estado e o município.",
+        "Veja quantos cadastros estão sem análise concluída e há quanto tempo.",
+        "Clique em um perfil para listar os imóveis correspondentes.",
+        "Abra uma linha para ver os motivos e, se precisar, o cadastro completo."
+      ]
+    },
+    {
+      "titulo": "Montar uma lista de trabalho",
+      "passos": [
+        "Combine perfis, condição, situação, tipo e tempo desde a criação.",
+        "Escolha a ordem: prioridade sugerida, mais antigos ou maiores áreas.",
+        "Baixe o CSV. O arquivo traz os perfis de cada imóvel."
+      ]
+    },
+    {
+      "titulo": "Verificar imóveis para crédito rural",
+      "passos": [
+        "Abra a aba Crédito e cole até 1.000 códigos CAR, ou envie um arquivo CSV ou TXT.",
+        "Veja os pontos de atenção de cada imóvel, separados por nível.",
+        "Baixe o resultado em CSV. A verificação usa o índice local e não substitui as consultas exigidas pelas normas de crédito."
+      ]
+    },
+    {
+      "titulo": "Acompanhar mudanças recentes",
+      "passos": [
+        "No Radar, use o filtro Movimento recente.",
+        "Escolha imóveis que concluíram análise ou mudaram de etapa nos últimos 30 dias.",
+        "A linha do tempo mostra as etapas e as mudanças registradas a cada dia."
+      ]
+    },
+    {
+      "titulo": "Perguntar em português",
+      "passos": [
+        "Abra o Assistente e escreva a pergunta com município, perfil, condição ou tempo.",
+        "Confira os filtros que o sistema entendeu.",
+        "Abra o resultado no Radar para continuar a análise."
+      ]
+    },
+    {
+      "titulo": "Consultar imóveis e camadas",
+      "passos": [
+        "Abra a aba Consulta para buscar por código, lista de códigos, município ou área desenhada.",
+        "Essa aba consulta os serviços públicos sob demanda e reaproveita respostas guardadas."
+      ]
+    },
+    {
+      "titulo": "Usar a API",
+      "passos": [
+        "A documentação interativa está em /docs.",
+        "Comece por /api/radar/resumo?uf=MA e /api/radar/fila?uf=MA&perfis=fila_5_anos.",
+        "As rotas do Radar leem apenas o índice local."
+      ]
+    }
   ],
   "glossario": [
-    {"termo": "CAR", "definicao": "Cadastro Ambiental Rural, registro eletrônico dos imóveis rurais previsto na Lei nº 12.651/2012."},
-    {"termo": "SICAR", "definicao": "Sistema Nacional de Cadastro Ambiental Rural, que reúne os cadastros."},
-    {"termo": "APP", "definicao": "Área de Preservação Permanente, definida pela Lei nº 12.651/2012."},
-    {"termo": "APP a recompor", "definicao": "Neste sistema, indica que o imóvel tem feição nas camadas públicas de APP a recompor da Consulta Pública."},
-    {"termo": "Reserva Legal", "definicao": "Área do imóvel rural delimitada nos termos da Lei nº 12.651/2012."},
-    {"termo": "Módulo fiscal", "definicao": "Unidade agrária que varia por município e é usada para classificar o tamanho do imóvel."},
-    {"termo": "IRU, AST e PCT", "definicao": "Tipos de cadastro: imóvel rural, assentamento da reforma agrária, e povos e comunidades tradicionais."},
-    {"termo": "AT, PE, SU e CA", "definicao": "Situações do cadastro: ativo, pendente, suspenso e cancelado."},
-    {"termo": "Condição", "definicao": "Etapa em que o cadastro se encontra no processo de análise, conforme informado pelo SICAR."},
-    {"termo": "Perfil", "definicao": "Rótulo calculado por uma regra pública deste sistema. Não é uma categoria oficial do SICAR."},
-    {"termo": "Prioridade sugerida", "definicao": "Soma limitada a 100 dos pesos dos perfis do imóvel. Serve para ordenar a triagem."},
-    {"termo": "WFS", "definicao": "Padrão de serviço web para consultar dados geográficos e seus atributos."}
+    {
+      "termo": "CAR",
+      "definicao": "Cadastro Ambiental Rural, registro eletrônico dos imóveis rurais previsto na Lei nº 12.651/2012."
+    },
+    {
+      "termo": "SICAR",
+      "definicao": "Sistema Nacional de Cadastro Ambiental Rural, que reúne os cadastros."
+    },
+    {
+      "termo": "APP",
+      "definicao": "Área de Preservação Permanente, definida pela Lei nº 12.651/2012."
+    },
+    {
+      "termo": "APP a recompor",
+      "definicao": "Neste sistema, indica que o imóvel tem feição nas camadas públicas de APP a recompor da Consulta Pública."
+    },
+    {
+      "termo": "Reserva Legal",
+      "definicao": "Área do imóvel rural delimitada nos termos da Lei nº 12.651/2012."
+    },
+    {
+      "termo": "Módulo fiscal",
+      "definicao": "Unidade agrária que varia por município e é usada para classificar o tamanho do imóvel."
+    },
+    {
+      "termo": "IRU, AST e PCT",
+      "definicao": "Tipos de cadastro: imóvel rural, assentamento da reforma agrária, e povos e comunidades tradicionais."
+    },
+    {
+      "termo": "AT, PE, SU e CA",
+      "definicao": "Situações do cadastro: ativo, pendente, suspenso e cancelado."
+    },
+    {
+      "termo": "Condição",
+      "definicao": "Etapa em que o cadastro se encontra no processo de análise, conforme informado pelo SICAR."
+    },
+    {
+      "termo": "Perfil",
+      "definicao": "Rótulo calculado por uma regra pública deste sistema. Não é uma categoria oficial do SICAR."
+    },
+    {
+      "termo": "Prioridade sugerida",
+      "definicao": "Soma limitada a 100 dos pesos dos perfis do imóvel. Serve para ordenar a triagem."
+    },
+    {
+      "termo": "WFS",
+      "definicao": "Padrão de serviço web para consultar dados geográficos e seus atributos."
+    },
+    {
+      "termo": "Índice local",
+      "definicao": "Cópia dos atributos públicos do CAR mantida por este sistema para responder às consultas sem chamar o SICAR."
+    },
+    {
+      "termo": "Índice espacial",
+      "definicao": "Estrutura do PostGIS que permite encontrar rapidamente os imóveis dentro de uma área do mapa."
+    },
+    {
+      "termo": "Histórico de mudanças",
+      "definicao": "Registro das mudanças de condição e de situação detectadas a cada sincronização, com a data em que foram vistas."
+    },
+    {
+      "termo": "Ponto de atenção",
+      "definicao": "Sinal público que merece conferência na análise de crédito, como cadastro cancelado ou sobreposição com área embargada."
+    }
   ],
   "dicionario": [
-    {"campo": "cod_imovel", "servico": "cod_imovel", "tipo": "texto", "descricao": "Número de inscrição único atribuído ao imóvel no SICAR."},
-    {"campo": "mod_fiscal", "servico": "m_fiscal", "tipo": "número", "descricao": "Tamanho do imóvel em módulos fiscais, unidade agrária que varia por município."},
-    {"campo": "num_area", "servico": "area", "tipo": "número", "descricao": "Área bruta total do imóvel informada na inscrição."},
-    {"campo": "ind_status", "servico": "status_imovel", "tipo": "texto", "descricao": "Situação do cadastro: AT ativo, PE pendente, SU suspenso e CA cancelado."},
-    {"campo": "ind_tipo", "servico": "tipo_imovel", "tipo": "texto", "descricao": "Tipo: IRU imóvel rural, AST assentamento e PCT povos e comunidades tradicionais."},
-    {"campo": "des_condic", "servico": "condicao", "tipo": "texto", "descricao": "Condição atual da análise do registro."},
-    {"campo": "municipio", "servico": "municipio", "tipo": "texto", "descricao": "Município em que o imóvel está localizado."},
-    {"campo": "cod_estado", "servico": "uf", "tipo": "texto", "descricao": "Sigla da Unidade Federativa."},
-    {"campo": "dat_criaca", "servico": "dat_criacao", "tipo": "data", "descricao": "Data de inscrição do imóvel no SICAR."},
-    {"campo": "dat_atuali", "servico": "data_atualizacao", "tipo": "data", "descricao": "Data da última modificação dos dados de inscrição."},
-    {"campo": "cod_tema", "servico": "camadas temáticas", "tipo": "texto", "descricao": "Código do tema de uso do solo que compõe o cadastro."},
-    {"campo": "nom_tema", "servico": "camadas temáticas", "tipo": "texto", "descricao": "Nome do tema ambiental, como APP, Reserva Legal ou vegetação nativa."}
+    {
+      "campo": "cod_imovel",
+      "servico": "cod_imovel",
+      "tipo": "texto",
+      "descricao": "Número de inscrição único atribuído ao imóvel no SICAR."
+    },
+    {
+      "campo": "mod_fiscal",
+      "servico": "m_fiscal",
+      "tipo": "número",
+      "descricao": "Tamanho do imóvel em módulos fiscais, unidade agrária que varia por município."
+    },
+    {
+      "campo": "num_area",
+      "servico": "area",
+      "tipo": "número",
+      "descricao": "Área bruta total do imóvel informada na inscrição."
+    },
+    {
+      "campo": "ind_status",
+      "servico": "status_imovel",
+      "tipo": "texto",
+      "descricao": "Situação do cadastro: AT ativo, PE pendente, SU suspenso e CA cancelado."
+    },
+    {
+      "campo": "ind_tipo",
+      "servico": "tipo_imovel",
+      "tipo": "texto",
+      "descricao": "Tipo: IRU imóvel rural, AST assentamento e PCT povos e comunidades tradicionais."
+    },
+    {
+      "campo": "des_condic",
+      "servico": "condicao",
+      "tipo": "texto",
+      "descricao": "Condição atual da análise do registro."
+    },
+    {
+      "campo": "municipio",
+      "servico": "municipio",
+      "tipo": "texto",
+      "descricao": "Município em que o imóvel está localizado."
+    },
+    {
+      "campo": "cod_estado",
+      "servico": "uf",
+      "tipo": "texto",
+      "descricao": "Sigla da Unidade Federativa."
+    },
+    {
+      "campo": "dat_criaca",
+      "servico": "dat_criacao",
+      "tipo": "data",
+      "descricao": "Data de inscrição do imóvel no SICAR."
+    },
+    {
+      "campo": "dat_atuali",
+      "servico": "data_atualizacao",
+      "tipo": "data",
+      "descricao": "Data da última modificação dos dados de inscrição."
+    },
+    {
+      "campo": "cod_tema",
+      "servico": "camadas temáticas",
+      "tipo": "texto",
+      "descricao": "Código do tema de uso do solo que compõe o cadastro."
+    },
+    {
+      "campo": "nom_tema",
+      "servico": "camadas temáticas",
+      "tipo": "texto",
+      "descricao": "Nome do tema ambiental, como APP, Reserva Legal ou vegetação nativa."
+    }
   ],
   "faq": [
-    {"pergunta": "Abrir o Radar consulta o SICAR?", "resposta": "Não. O Radar, o Assistente e esta central leem dados locais. O SICAR só é consultado pela rotina de sincronização, com orçamento diário, ou quando alguém abre a Consulta ou o cadastro completo de um imóvel."},
-    {"pergunta": "Os dados são em tempo real?", "resposta": "Não no Radar. A tela informa quando o índice foi sincronizado. A Consulta e o detalhe do imóvel buscam dados atuais, com cache de curta duração."},
-    {"pergunta": "Prioridade alta significa irregularidade?", "resposta": "Não. A prioridade apenas ordena cadastros por sinais públicos. A situação ambiental de um imóvel depende da análise do órgão competente."},
-    {"pergunta": "Por que a linha do tempo começa agora?", "resposta": "Os serviços públicos mostram a condição atual, sem histórico de mudanças. A série começa na primeira sincronização deste índice."},
-    {"pergunta": "O tempo mostrado é o tempo real de fila?", "resposta": "É uma aproximação: o tempo desde a criação do cadastro. A data de entrada em cada etapa da análise não está disponível nos dados públicos usados."},
-    {"pergunta": "O assistente usa inteligência artificial generativa?", "resposta": "Não. Ele interpreta a pergunta por regras, mostra os filtros entendidos e executa apenas consultas permitidas no índice."}
+    {
+      "pergunta": "Abrir o Radar consulta o SICAR?",
+      "resposta": "Não. O Radar, o Assistente e esta central leem dados locais. O SICAR só é consultado pela rotina de sincronização, com orçamento diário, ou quando alguém abre a Consulta ou o cadastro completo de um imóvel."
+    },
+    {
+      "pergunta": "Os dados são em tempo real?",
+      "resposta": "Não no Radar. A tela informa quando o índice foi sincronizado. A Consulta e o detalhe do imóvel buscam dados atuais, com cache de curta duração."
+    },
+    {
+      "pergunta": "Prioridade alta significa irregularidade?",
+      "resposta": "Não. A prioridade apenas ordena cadastros por sinais públicos. A situação ambiental de um imóvel depende da análise do órgão competente."
+    },
+    {
+      "pergunta": "Por que a linha do tempo começa agora?",
+      "resposta": "Os serviços públicos mostram a condição atual, sem histórico de mudanças. A série começa na primeira sincronização deste índice."
+    },
+    {
+      "pergunta": "O tempo mostrado é o tempo real de fila?",
+      "resposta": "É uma aproximação: o tempo desde a criação do cadastro. A data de entrada em cada etapa da análise não está disponível nos dados públicos usados."
+    },
+    {
+      "pergunta": "O assistente usa inteligência artificial generativa?",
+      "resposta": "Não. Ele interpreta a pergunta por regras, mostra os filtros entendidos e executa apenas consultas permitidas no índice."
+    },
+    {
+      "pergunta": "Como funciona o filtro de analisados no último mês?",
+      "resposta": "A cada sincronização, o sistema registra os imóveis cuja condição mudou para analisado. O filtro usa esse histórico, que começa na primeira sincronização diária, porque o SICAR público não informa a data das análises."
+    },
+    {
+      "pergunta": "A verificação para crédito consulta o SICAR?",
+      "resposta": "Não para imóveis dos estados já indexados. Códigos de outros estados são buscados ao vivo, com cache, e recebem só os pontos que dependem do cadastro."
+    },
+    {
+      "pergunta": "De onde vêm os limites dos imóveis no mapa do Radar?",
+      "resposta": "Do índice espacial local, carregado aos poucos pela rotina de sincronização e simplificado para cerca de 2 metros. O cadastro completo continua vindo da fonte oficial."
+    }
   ],
   "metodologia": [
-    {"titulo": "Índice sem geometria", "texto": "Guarda atributos do cadastro por imóvel. As geometrias continuam nos serviços oficiais e são buscadas quando alguém abre um imóvel."},
-    {"titulo": "Sincronização controlada", "texto": "A carga é feita por município, uma chamada por vez, com intervalo, janela de horário, orçamento diário, retomada e parada automática se a fonte recusar o acesso."},
-    {"titulo": "Mudanças reais", "texto": "A rotina compara um resumo dos atributos de cada imóvel, porque a data de atualização pode mudar em massa sem mudança no conteúdo."},
-    {"titulo": "Perfis explicáveis", "texto": "Cada perfil tem regra, fonte e peso publicados. A versão das regras acompanha os resultados."},
-    {"titulo": "Padrões exploratórios", "texto": "O K-Means agrupa cadastros por porte, idade, etapa e indicadores. A quantidade de grupos é escolhida pela silhueta e a estabilidade é medida com sementes diferentes."}
+    {
+      "titulo": "Índice sem geometria",
+      "texto": "Guarda atributos do cadastro por imóvel. As geometrias continuam nos serviços oficiais e são buscadas quando alguém abre um imóvel."
+    },
+    {
+      "titulo": "Sincronização controlada",
+      "texto": "A carga é feita por município, uma chamada por vez, com intervalo, janela de horário, orçamento diário, retomada e parada automática se a fonte recusar o acesso."
+    },
+    {
+      "titulo": "Mudanças reais",
+      "texto": "A rotina compara um resumo dos atributos de cada imóvel, porque a data de atualização pode mudar em massa sem mudança no conteúdo."
+    },
+    {
+      "titulo": "Histórico e linha do tempo",
+      "texto": "Mudanças de condição e de situação são registradas com a data da sincronização. A linha do tempo combina esse histórico com a fotografia diária de cada etapa."
+    },
+    {
+      "titulo": "Índice espacial",
+      "texto": "Os limites são carregados por município e, depois, só para imóveis alterados. Ficam no PostGIS com índice GiST, em SIRGAS 2000 (EPSG:4674)."
+    },
+    {
+      "titulo": "Perfis explicáveis",
+      "texto": "Cada perfil tem regra, fonte e peso publicados. A versão das regras acompanha os resultados."
+    },
+    {
+      "titulo": "Padrões exploratórios",
+      "texto": "O K-Means agrupa cadastros por porte, idade, etapa e indicadores. A quantidade de grupos é escolhida pela silhueta e a estabilidade é medida com sementes diferentes."
+    }
   ],
   "limites": [
     "Os dados do CAR são declaratórios e este sistema não substitui o Demonstrativo oficial.",
@@ -58,17 +274,124 @@
     "Uma integração oficial ao portal depende de decisão e autorização do governo."
   ],
   "legislacao": [
-    {"titulo": "Lei nº 12.651/2012", "descricao": "Dispõe sobre a proteção da vegetação nativa.", "url": "https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2012/lei/l12651.htm"},
-    {"titulo": "Decreto nº 7.830/2012", "descricao": "Dispõe sobre o SICAR, o CAR e normas gerais dos Programas de Regularização Ambiental.", "url": "https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2012/decreto/d7830.htm"},
-    {"titulo": "Decreto nº 8.235/2014", "descricao": "Estabelece normas complementares para os Programas de Regularização Ambiental e institui o Programa Mais Ambiente Brasil.", "url": "https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2014/decreto/d8235.htm"},
-    {"titulo": "Instrução Normativa MMA nº 2/2014", "descricao": "Norma citada pelo dicionário oficial para a situação do cadastro.", "url": "https://www.car.gov.br/leis/IN_CAR.pdf"},
-    {"titulo": "Resolução SFB nº 3/2018", "descricao": "Norma citada pelo dicionário oficial para a situação do cadastro.", "url": "https://www.in.gov.br/web/dou/-/resolucao-n-3-de-27-de-agosto-de-2018-38536774"}
+    {
+      "titulo": "Lei nº 12.651/2012",
+      "descricao": "Dispõe sobre a proteção da vegetação nativa.",
+      "url": "https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2012/lei/l12651.htm"
+    },
+    {
+      "titulo": "Decreto nº 7.830/2012",
+      "descricao": "Dispõe sobre o SICAR, o CAR e normas gerais dos Programas de Regularização Ambiental.",
+      "url": "https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2012/decreto/d7830.htm"
+    },
+    {
+      "titulo": "Decreto nº 8.235/2014",
+      "descricao": "Estabelece normas complementares para os Programas de Regularização Ambiental e institui o Programa Mais Ambiente Brasil.",
+      "url": "https://www.planalto.gov.br/ccivil_03/_ato2011-2014/2014/decreto/d8235.htm"
+    },
+    {
+      "titulo": "Instrução Normativa MMA nº 2/2014",
+      "descricao": "Norma citada pelo dicionário oficial para a situação do cadastro.",
+      "url": "https://www.car.gov.br/leis/IN_CAR.pdf"
+    },
+    {
+      "titulo": "Resolução SFB nº 3/2018",
+      "descricao": "Norma citada pelo dicionário oficial para a situação do cadastro.",
+      "url": "https://www.in.gov.br/web/dou/-/resolucao-n-3-de-27-de-agosto-de-2018-38536774"
+    },
+    {
+      "titulo": "Lei nº 13.709/2018 (LGPD)",
+      "descricao": "Dispõe sobre a proteção de dados pessoais.",
+      "url": "https://www.planalto.gov.br/ccivil_03/_ato2015-2018/2018/lei/l13709.htm"
+    }
   ],
   "links": [
-    {"titulo": "Portal do CAR", "descricao": "Página oficial do Cadastro Ambiental Rural.", "url": "https://www.car.gov.br/"},
-    {"titulo": "Consulta Pública do CAR", "descricao": "Mapa e downloads oficiais.", "url": "https://consulta.car.gov.br/"},
-    {"titulo": "Painel de Dados do CAR", "descricao": "Indicadores agregados oficiais.", "url": "https://painel.car.gov.br/"},
-    {"titulo": "Serviço WFS do SICAR", "descricao": "Descrição técnica do serviço público de dados.", "url": "https://geoserver.car.gov.br/geoserver/sicar/wfs?service=WFS&request=GetCapabilities"},
-    {"titulo": "Bases de referência para análise do CAR", "descricao": "Nota técnica do Serviço Florestal Brasileiro.", "url": "https://www.gov.br/florestal/pt-br/centrais-de-conteudo/publicacoes/documentos/NotaTcnicaBasesdeRefernciaAnliseCAR.pdf"}
+    {
+      "titulo": "Portal do CAR",
+      "descricao": "Página oficial do Cadastro Ambiental Rural.",
+      "url": "https://www.car.gov.br/"
+    },
+    {
+      "titulo": "Consulta Pública do CAR",
+      "descricao": "Mapa e downloads oficiais.",
+      "url": "https://consulta.car.gov.br/"
+    },
+    {
+      "titulo": "Painel de Dados do CAR",
+      "descricao": "Indicadores agregados oficiais.",
+      "url": "https://painel.car.gov.br/"
+    },
+    {
+      "titulo": "Serviço WFS do SICAR",
+      "descricao": "Descrição técnica do serviço público de dados.",
+      "url": "https://geoserver.car.gov.br/geoserver/sicar/wfs?service=WFS&request=GetCapabilities"
+    },
+    {
+      "titulo": "Bases de referência para análise do CAR",
+      "descricao": "Nota técnica do Serviço Florestal Brasileiro.",
+      "url": "https://www.gov.br/florestal/pt-br/centrais-de-conteudo/publicacoes/documentos/NotaTcnicaBasesdeRefernciaAnliseCAR.pdf"
+    }
+  ],
+  "biblioteca": [
+    {
+      "titulo": "Documentação da API",
+      "descricao": "Rotas, parâmetros e exemplos em OpenAPI.",
+      "url": "/docs"
+    },
+    {
+      "titulo": "Arquitetura",
+      "descricao": "Componentes, tabelas e fluxo dos dados.",
+      "url": "https://github.com/ReinaldoJunior96/radar-fila-car/blob/main/docs/arquitetura.md"
+    },
+    {
+      "titulo": "Metodologia",
+      "descricao": "Perfis, prioridade, agrupamento e assistente.",
+      "url": "https://github.com/ReinaldoJunior96/radar-fila-car/blob/main/docs/metodologia.md"
+    },
+    {
+      "titulo": "Operação",
+      "descricao": "Instalação, sincronização, proteções e testes.",
+      "url": "https://github.com/ReinaldoJunior96/radar-fila-car/blob/main/docs/operacao.md"
+    },
+    {
+      "titulo": "Integração com o portal do CAR",
+      "descricao": "Caminho técnico para o MGI.",
+      "url": "https://github.com/ReinaldoJunior96/radar-fila-car/blob/main/docs/integracao-mgi.md"
+    },
+    {
+      "titulo": "Conformidade e segurança",
+      "descricao": "LGPD, e-PING, dados abertos e segurança.",
+      "url": "https://github.com/ReinaldoJunior96/radar-fila-car/blob/main/docs/conformidade.md"
+    },
+    {
+      "titulo": "Padrão WFS (OGC)",
+      "descricao": "Especificação do serviço usado pelo SICAR.",
+      "url": "https://www.ogc.org/standards/wfs/"
+    },
+    {
+      "titulo": "GeoJSON (RFC 7946)",
+      "descricao": "Formato usado nos limites e nas exportações.",
+      "url": "https://www.rfc-editor.org/rfc/rfc7946"
+    },
+    {
+      "titulo": "OpenAPI",
+      "descricao": "Padrão da documentação da API.",
+      "url": "https://spec.openapis.org/oas/latest.html"
+    },
+    {
+      "titulo": "e-PING",
+      "descricao": "Padrões de Interoperabilidade de Governo Eletrônico.",
+      "url": "https://eping.governoeletronico.gov.br/"
+    },
+    {
+      "titulo": "Portal de Dados Abertos",
+      "descricao": "Catálogo federal de dados abertos.",
+      "url": "https://dados.gov.br/"
+    },
+    {
+      "titulo": "Modelo de Acessibilidade (eMAG)",
+      "descricao": "Referência de acessibilidade do Governo Digital.",
+      "url": "https://www.gov.br/governodigital/pt-br/acessibilidade-e-usuario/acessibilidade-digital/modelo-de-acessibilidade"
+    }
   ]
 }

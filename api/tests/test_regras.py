@@ -3,7 +3,7 @@ import json
 import unittest
 from datetime import date
 
-from app import assistente, classificacao, fonte, indice, sicar
+from app import assistente, classificacao, credito, fonte, indice, sicar
 
 HOJE = date(2026, 11, 18)
 MUNICIPIOS = [{"ibge": 2105401, "municipio": "Itapecuru Mirim"}, {"ibge": 2100055, "municipio": "Açailândia"}]
@@ -80,6 +80,37 @@ class Assistente(unittest.TestCase):
 
     def test_pergunta_fora_do_tema(self):
         self.assertEqual(self.interpretar("qual a capital da França?").entendido, [])
+
+    def test_analisados_no_ultimo_mes(self):
+        filtro = self.interpretar("imóveis analisados no último mês").filtro
+        self.assertIn("analisado_desde", filtro)
+        self.assertGreaterEqual((date.today() - date.fromisoformat(filtro["analisado_desde"])).days, 28)
+
+    def test_continuacao_mantem_filtros_anteriores(self):
+        item = self.interpretar("e só em Itapecuru Mirim")
+        assistente._mesclar(item, {"filtros": {"perfis": ["sem_analise"], "anos_min": 5}}, MUNICIPIOS)
+        self.assertEqual((item.ibge, item.filtro["perfis"], item.filtro["anos_min"]), (2105401, ["sem_analise"], 5))
+
+    def test_definicao_vem_da_central(self):
+        achado = assistente.definir("o que é módulo fiscal?")
+        self.assertEqual(achado["termo"].lower(), "módulo fiscal")
+        self.assertIsNone(assistente.definir("o que é fotossíntese?"))
+
+
+class Credito(unittest.TestCase):
+    def test_pontos_ordenados_por_nivel(self):
+        pontos = credito.pontos(["sem_analise", "app_recompor", "status_cancelado"])
+        self.assertEqual([p["nivel"] for p in pontos], ["alta", "atencao", "info"])
+        self.assertTrue(all(p["fonte"] for p in pontos))
+
+    def test_resultado_pelo_pior_ponto(self):
+        self.assertEqual(credito._resultado({"pontos": credito.pontos(["sobre_embargo", "app_recompor"])}), "atencao_alta")
+        self.assertEqual(credito._resultado({"pontos": credito.pontos(["app_recompor"])}), "atencao")
+        self.assertEqual(credito._resultado({"pontos": credito.pontos(["analisado_conforme"])}), "sem_pontos")
+
+    def test_fora_do_indice_avisa_indicadores_nao_verificados(self):
+        pontos = credito.pontos(["sem_analise"], indicadores_ambientais=False)
+        self.assertIn("indicadores_nao_verificados", [p["codigo"] for p in pontos])
 
 
 def transporte(respostas, pedidos=None):

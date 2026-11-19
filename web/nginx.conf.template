@@ -32,11 +32,19 @@ server {
 
     location = /api/consultas/lote {
         limit_req zone=api_batch burst=${BATCH_RATE_BURST} nodelay;
+        include /etc/nginx/snippets/seguranca.conf;
+        proxy_pass http://api:8000;
+    }
+
+    location ~ ^/api/credito/verificacao(\.csv)?$ {
+        limit_req zone=api_batch burst=${BATCH_RATE_BURST} nodelay;
+        include /etc/nginx/snippets/seguranca.conf;
         proxy_pass http://api:8000;
     }
 
     location = /api/consultas/lote.csv {
         limit_req zone=api_batch burst=${BATCH_RATE_BURST} nodelay;
+        include /etc/nginx/snippets/seguranca.conf;
         proxy_pass http://api:8000;
     }
 
@@ -52,20 +60,26 @@ server {
         proxy_cache_use_stale error timeout updating http_502 http_503 http_504;
         proxy_cache_background_update on;
         add_header X-Cache-Status $upstream_cache_status always;
+        include /etc/nginx/snippets/seguranca.conf;
     }
 
+    # A documentação usa os arquivos do Swagger UI servidos pela própria biblioteca, por isso fica sem CSP.
     location ~ ^/(docs|redoc|openapi\.json)$ {
+        include /etc/nginx/snippets/seguranca.conf;
         proxy_pass http://api:8000;
     }
 
     # EMBED_ORIGINS lista os sites autorizados a incorporar o Radar.
     location = /embed/radar {
-        add_header Content-Security-Policy "frame-ancestors ${EMBED_ORIGINS}" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.tile.openstreetmap.org; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors ${EMBED_ORIGINS}" always;
+        include /etc/nginx/snippets/seguranca.conf;
         try_files /embed-radar.html =404;
     }
 
     location / {
         add_header X-Frame-Options "SAMEORIGIN" always;
+        add_header Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://*.tile.openstreetmap.org; connect-src 'self'; font-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'" always;
+        include /etc/nginx/snippets/seguranca.conf;
         try_files $uri $uri/ /index.html;
     }
 }

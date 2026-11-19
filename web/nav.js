@@ -1,6 +1,6 @@
 /* Navegação entre as áreas. A Consulta só inicia, e só chama o SICAR, quando é aberta. */
 (() => {
-  const AREAS = ["radar", "consulta", "assistente", "conhecimento"];
+  const AREAS = ["radar", "consulta", "credito", "assistente", "conhecimento"];
   let consultaIniciada = false;
 
   function abrir() {
