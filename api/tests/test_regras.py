@@ -37,6 +37,19 @@ class Classificacao(unittest.TestCase):
                   "sobreposicao_quilombo", "sobreposicao_terras_da_uniao"]
         self.assertEqual(classificacao.classificar(linha(sobreposicoes=campos, modulos=20), HOJE)[1], 100)
 
+    def test_sobreposicao_entre_cars(self):
+        novo = date(2026, 1, 1)
+        perfis, _ = classificacao.classificar(linha(data_criacao=novo, tipo="IRU", car_contidos=3), HOJE)
+        self.assertIn("car_cobre_outros", perfis)
+        # Assentamento que contém lotes é o esperado, não um alerta.
+        perfis, _ = classificacao.classificar(linha(data_criacao=novo, tipo="AST", car_contidos=40), HOJE)
+        self.assertNotIn("car_cobre_outros", perfis)
+        perfis, _ = classificacao.classificar(linha(data_criacao=novo, car_duplicado=True, car_dentro_pct=0.95), HOJE)
+        self.assertIn("car_duplicado", perfis)
+        self.assertIn("car_dentro_de_outro", perfis)
+        perfis, _ = classificacao.classificar(linha(data_criacao=novo, car_dentro_pct=0.3), HOJE)
+        self.assertNotIn("car_dentro_de_outro", perfis)
+
     def test_todo_perfil_explica_motivo_e_fonte(self):
         for item in classificacao.catalogo():
             self.assertTrue(item["descricao"] and item["fonte"])
@@ -61,6 +74,13 @@ class Assistente(unittest.TestCase):
         item = self.interpretar("Quantos imóveis estão sem análise há mais de 5 anos?")
         self.assertEqual(item.intencao, "contagem")
         self.assertEqual(item.filtro, {"perfis": ["sem_analise"], "anos_min": 5})
+
+    def test_sobreposicao_entre_cars(self):
+        self.assertEqual(self.interpretar("possível grilagem em Itapecuru Mirim").filtro["perfis"], ["car_cobre_outros"])
+        self.assertEqual(self.interpretar("imóveis com dois cadastros na mesma área").filtro["perfis"], ["car_duplicado"])
+        filtro = self.interpretar("sobreposição com outro CAR").filtro
+        self.assertEqual(filtro["perfis"], ["car_dentro_de_outro"])
+        self.assertNotIn("com_sobreposicao", filtro)
 
     def test_sem_analise_nao_vira_em_analise(self):
         self.assertNotIn("condicao", self.interpretar("imóveis sem análise").filtro)

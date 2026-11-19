@@ -382,3 +382,12 @@ body.embed .radar-view { height: 100vh; height: 100dvh; }
 }
 @media (prefers-reduced-motion: reduce) { .radar-view * { transition: none !important; animation: none !important; } }
 .radar-view .sync-sub { margin: 22px 0 10px; }
+
+/* Detalhe: outros CARs na mesma área */
+.rd-entre-cars { width: 100%; border-collapse: collapse; font-size: 12px; margin: 4px 0 6px; }
+.rd-entre-cars th { text-align: left; font-weight: 600; color: var(--rd-t2, #4b5a51); border-bottom: 1px solid var(--linha, #dde4dc); padding: 4px 6px; }
+.rd-entre-cars td { border-bottom: 1px solid var(--linha, #dde4dc); padding: 4px 6px; vertical-align: top; }
+.rd-entre-cars .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rd-entre-cars code { font-size: 11px; word-break: break-all; }
+.rd-entre-cars small { display: block; color: var(--rd-t3, #6f7d73); }
+.rd-entre-h { margin-top: 14px; }

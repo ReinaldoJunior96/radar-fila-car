@@ -39,11 +39,13 @@
     ["atualizado_desde", "Atualizados no SICAR nos últimos 30 dias", "Atualizados no SICAR"],
   ];
   const AMBIENTAIS = ["app_recompor", "sobre_embargo", "sobre_indigena", "sobre_uc", "sobre_quilombo", "sobre_uniao"];
+  const ENTRE_CARS = ["car_cobre_outros", "car_duplicado", "car_dentro_de_outro"];
   const OUTROS_PERFIS = ["retorno_revisao", "acima_15_modulos", "retificado_3x", "area_atipica"];
   const ATALHOS = [
     { id: "parados", titulo: "Parados há 5 anos ou mais", texto: "Cadastros sem análise criados há pelo menos 5 anos.", filtros: { perfis: ["fila_5_anos"] } },
     { id: "app", titulo: "Com área a recompor", texto: "Imóveis em camadas oficiais de APP a recompor.", filtros: { perfis: ["app_recompor"] } },
     { id: "mes", titulo: "Analisados no último mês", texto: "Concluíram a análise nos últimos 30 dias.", filtros: { analisado_desde: "30" } },
+    { id: "cobre", titulo: "Cobrem outros cadastros", texto: "CARs cujo limite contém 3 ou mais outros CARs ativos.", filtros: { perfis: ["car_cobre_outros"] } },
     { id: "indigena", titulo: "Sobre terra indígena", texto: "Sobreposição oficial com terra indígena.", filtros: { perfis: ["sobre_indigena"] } },
     { id: "grandes", titulo: "Grandes imóveis na fila", texto: "Acima de 15 módulos fiscais e sem análise.", filtros: { perfis: ["sem_analise", "acima_15_modulos"] } },
     { id: "prioridade", titulo: "Maior prioridade sugerida", texto: "Prioridade de 75 a 100, pela soma dos perfis.", filtros: { prioridade_min: 75 } },
@@ -135,6 +137,7 @@
       { id: "etapa", titulo: "Etapa da análise", opcoes: ETAPAS.filter(([v]) => v !== "outro" || r.condicoes?.outro).map(([v, t]) => ({ rotulo: t, ativo: f.condicao === v, contagem: conta(r.condicoes, v), acao: { tipo: "campo", k: "condicao", v } })) },
       { id: "tempo", titulo: "Tempo desde a criação", opcoes: TEMPOS.map(([v, t]) => ({ rotulo: t, ativo: Number(f.anos_min) === v, acao: { tipo: "campo", k: "anos_min", v } })) },
       { id: "ambiental", titulo: "Ambiental e sobreposições", multipla: true, opcoes: AMBIENTAIS.map(perfil) },
+      { id: "entre-cars", titulo: "Sobreposição entre CARs", multipla: true, opcoes: ENTRE_CARS.map(perfil) },
       { id: "situacao", titulo: "Situação do cadastro", opcoes: SITUACOES.map(([v, t]) => ({ rotulo: t, ativo: f.status === v, contagem: conta(r.status, v), acao: { tipo: "campo", k: "status", v } })) },
       { id: "tipo", titulo: "Tipo de imóvel", opcoes: TIPOS.map(([v, t]) => ({ rotulo: t, ativo: f.tipo === v, acao: { tipo: "campo", k: "tipo", v } })) },
       { id: "tamanho", titulo: "Tamanho", opcoes: [...TAMANHOS.map(([v, t]) => ({ rotulo: t, ativo: f.tamanho === v, acao: { tipo: "tamanho", v } })), perfil("acima_15_modulos")] },
@@ -456,6 +459,14 @@
         </div></td></tr>`).join("")}</tbody></table></div>`;
   }
 
+  function blocoEntreCars(sc) {
+    if (!sc) return "";
+    if (!sc.calculada) return `<h4 class="rd-entre-h">Outros CARs na mesma área</h4><p class="rd-nota">Ainda não verificado: os limites deste município não foram carregados.</p>`;
+    if (!sc.total) return `<h4 class="rd-entre-h">Outros CARs na mesma área</h4><p class="rd-nota">Nenhum CAR ativo cobre 10% ou mais deste limite, nem é coberto por ele nessa proporção.</p>`;
+    const linhas = sc.itens.slice(0, 8).map((o) => `<tr><td><code>${esc(o.codigo)}</code><small>${esc(o.tipo || "")} · ${esc(o.status || "")}</small></td><td class="num">${decimal(o.area_ha, 1)} ha</td><td class="num">${decimal(o.pct_deste, 0)}%</td><td class="num">${decimal(o.pct_do_outro, 0)}%</td></tr>`).join("");
+    return `<h4 class="rd-entre-h">Outros CARs na mesma área</h4><table class="rd-entre-cars"><thead><tr><th>CAR</th><th class="num">Área em comum</th><th class="num">% deste</th><th class="num">% do outro</th></tr></thead><tbody>${linhas}</tbody></table>${sc.total > 8 ? `<p class="rd-nota">Mostrando 8 de ${numero(sc.total)} CARs sobrepostos.</p>` : ""}<p class="rd-nota">Cruzamento dos limites declarados. Sobreposição pede verificação; não prova irregularidade nem diz quem tem a posse.</p>`;
+  }
+
   async function carregarLinhaCadastro(alvo) {
     if (!alvo || alvo.dataset.carregado) return;
     alvo.dataset.carregado = "1";
@@ -467,7 +478,7 @@
         ...(d.no_indice_desde ? [[d.no_indice_desde, `No índice, com condição: ${esc(d.condicao || "—")}`]] : []),
         ...d.historico.map((h) => [h.dia, `${EVENTOS[h.evento] || h.evento}${h.evento === "condicao" ? `: ${esc(rotulo(h.condicao_anterior))} → ${esc(rotulo(h.condicao_nova))}` : h.evento === "situacao" ? `: ${esc(h.status_anterior)} → ${esc(h.status_novo)}` : ""}`]),
       ];
-      alvo.innerHTML = `<h4>Linha do tempo do cadastro</h4><ol class="linha-eventos">${passos.map(([dia, texto]) => `<li><time>${dataBr(dia)}</time><span>${texto}</span></li>`).join("")}</ol>${d.area_limite_ha ? `<p class="rd-nota">Área do limite no índice espacial: ${decimal(d.area_limite_ha, 2)} ha.</p>` : ""}`;
+      alvo.innerHTML = `<h4>Linha do tempo do cadastro</h4><ol class="linha-eventos">${passos.map(([dia, texto]) => `<li><time>${dataBr(dia)}</time><span>${texto}</span></li>`).join("")}</ol>${d.area_limite_ha ? `<p class="rd-nota">Área do limite no índice espacial: ${decimal(d.area_limite_ha, 2)} ha.</p>` : ""}${blocoEntreCars(d.sobreposicao_car)}`;
     } catch {
       alvo.textContent = "";
     }

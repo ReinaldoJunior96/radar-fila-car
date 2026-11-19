@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from datetime import date
 from typing import Any
 
-VERSAO = "v1"
+VERSAO = "v2"
 Linha = dict[str, Any]
 
 
@@ -71,6 +71,9 @@ PERFIS = [
     Perfil("sobre_uc", "Sobreposição com unidade de conservação", "Indicador oficial de sobreposição maior que zero.", "sobreposicao_unidade_conservacao, Consulta Pública", 15, _sobreposicao("sobreposicao_unidade_conservacao"), "Sobreposição"),
     Perfil("sobre_quilombo", "Sobreposição com território quilombola", "Indicador oficial de sobreposição maior que zero.", "sobreposicao_quilombo, Consulta Pública", 15, _sobreposicao("sobreposicao_quilombo"), "Sobreposição"),
     Perfil("sobre_uniao", "Sobreposição com terras da União", "Indicador oficial de sobreposição maior que zero.", "sobreposicao_terras_da_uniao, Consulta Pública", 10, _sobreposicao("sobreposicao_terras_da_uniao"), "Sobreposição"),
+    Perfil("car_cobre_outros", "Cobre outros cadastros", "Imóvel rural cujo limite contém pelo menos 90% da área de 3 ou mais outros CARs ativos. É um padrão citado em casos de cadastro sobre áreas ocupadas por terceiros; indica que vale verificar, não que haja irregularidade.", "limites do WFS do SICAR, cruzados no índice espacial", 20, lambda l, _: l.get("tipo") == "IRU" and (l.get("car_contidos") or 0) >= 3, "Sobreposição entre CARs"),
+    Perfil("car_duplicado", "Mesma área de outro CAR", "Outro CAR ativo cobre pelo menos 90% deste limite, e este cobre pelo menos 90% do outro.", "limites do WFS do SICAR, cruzados no índice espacial", 15, lambda l, _: bool(l.get("car_duplicado")), "Sobreposição entre CARs"),
+    Perfil("car_dentro_de_outro", "Dentro de outro CAR", "Pelo menos 50% do limite está dentro de outro CAR ativo que não é assentamento.", "limites do WFS do SICAR, cruzados no índice espacial", 5, lambda l, _: (l.get("car_dentro_pct") or 0) >= 0.5, "Sobreposição entre CARs"),
     Perfil("status_pendente", "Cadastro pendente", "Situação cadastral pendente.", "status_imovel, WFS do SICAR", 5, lambda l, _: l.get("status") == "PE", "Situação"),
     Perfil("status_suspenso", "Cadastro suspenso", "Situação cadastral suspensa.", "status_imovel, WFS do SICAR", 5, lambda l, _: l.get("status") == "SU", "Situação"),
     Perfil("status_cancelado", "Cadastro cancelado", "Situação cadastral cancelada.", "status_imovel, WFS do SICAR", 0, lambda l, _: l.get("status") == "CA", "Situação"),

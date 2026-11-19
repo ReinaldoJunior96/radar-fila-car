@@ -38,6 +38,9 @@ PERFIS_TEXTO = [
     (r"(acima|mais) de 15 modulos", "acima_15_modulos"),
     (r"retificad|retificacoes", "retificado_3x"),
     (r"atipic", "area_atipica"),
+    (r"grilagem|cobre[mn]? outros|engol|sobre outros (cars?|cadastros|imoveis)", "car_cobre_outros"),
+    (r"duplicad|mesma area|dois cadastros|cadastros? repetid", "car_duplicado"),
+    (r"dentro de outro|(sobreposic\w*|sobrepost\w*) (com|a|entre) (outros? )?(cars?|cadastros)\b", "car_dentro_de_outro"),
 ]
 CONDICOES_TEXTO = [
     (r"\bem analise\b", "em_analise"),
@@ -99,7 +102,7 @@ def interpretar(pergunta: str, uf: str, municipios: list[dict[str, Any]]) -> Int
             item.anotar("Perfil", classificacao.POR_CODIGO[codigo].rotulo)
     if perfis:
         filtro["perfis"] = perfis
-    if "sobreposic" in texto and not any(codigo.startswith("sobre_") for codigo in perfis):
+    if "sobreposic" in texto and not any(codigo.startswith(("sobre_", "car_")) for codigo in perfis):
         filtro["com_sobreposicao"] = True
         item.anotar("Indicador", "Qualquer sobreposição informada")
     if "sem_analise" not in perfis:

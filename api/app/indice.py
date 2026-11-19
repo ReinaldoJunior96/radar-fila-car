@@ -96,6 +96,13 @@ def criar_esquema(conn: psycopg.Connection[Any]) -> None:
         "CREATE INDEX IF NOT EXISTS geometria_imovel_gix ON geometria_imovel USING gist (geom)",
         "CREATE INDEX IF NOT EXISTS geometria_imovel_mun_idx ON geometria_imovel (uf, ibge)",
         "ALTER TABLE sync_estado ADD COLUMN IF NOT EXISTS geometrias_em timestamptz",
+        "ALTER TABLE indice_imovel ADD COLUMN IF NOT EXISTS car_contidos integer NOT NULL DEFAULT 0",
+        "ALTER TABLE indice_imovel ADD COLUMN IF NOT EXISTS car_dentro_pct real",
+        "ALTER TABLE indice_imovel ADD COLUMN IF NOT EXISTS car_duplicado boolean NOT NULL DEFAULT false",
+        """CREATE TABLE IF NOT EXISTS sobreposicao_car (
+            uf text NOT NULL, cod_imovel text NOT NULL, outro text NOT NULL, area_ha real NOT NULL,
+            pct_proprio real NOT NULL, pct_outro real NOT NULL, PRIMARY KEY (cod_imovel, outro))""",
+        "CREATE INDEX IF NOT EXISTS sobreposicao_car_uf_idx ON sobreposicao_car (uf)",
         """CREATE TABLE IF NOT EXISTS snapshot_municipio (
             dia date NOT NULL, uf text NOT NULL, ibge integer NOT NULL, condicao_grupo text NOT NULL,
             total integer NOT NULL, PRIMARY KEY (dia, uf, ibge, condicao_grupo))""",
@@ -232,6 +239,59 @@ def gravar_geometrias(conn: psycopg.Connection[Any], itens: Iterable[tuple[str, 
         gravados = cursor.rowcount
         cursor.execute("DROP TABLE entrada_geometria")
     return gravados
+
+
+def calcular_sobreposicoes_car(conn: psycopg.Connection[Any], uf: str) -> dict[str, int]:
+    """Cruza os limites de CARs ativos da UF entre si, só no índice espacial local.
+
+    Guarda cada par com sobreposição de pelo menos 10% de um dos lados e resume por imóvel:
+    quantos outros CARs ele contém (90% ou mais da área deles), quanto dele está dentro de outro
+    CAR que não é assentamento e se existe outro CAR com praticamente a mesma área.
+    """
+    with conn.cursor() as cursor:
+        cursor.execute("DELETE FROM sobreposicao_car WHERE uf = %s", (uf,))
+        cursor.execute(
+            """WITH pares AS (
+                   SELECT a.cod_imovel AS a, b.cod_imovel AS b,
+                          ST_Area(a.geom::geography) / 10000 AS area_a, ST_Area(b.geom::geography) / 10000 AS area_b,
+                          ST_Area(ST_Intersection(a.geom, b.geom)::geography) / 10000 AS inter
+                   FROM geometria_imovel AS a
+                   JOIN geometria_imovel AS b
+                     ON b.uf = a.uf AND a.cod_imovel < b.cod_imovel AND ST_Intersects(a.geom, b.geom)
+                   JOIN indice_imovel AS ia ON ia.cod_imovel = a.cod_imovel AND ia.status IS DISTINCT FROM 'CA'
+                   JOIN indice_imovel AS ib ON ib.cod_imovel = b.cod_imovel AND ib.status IS DISTINCT FROM 'CA'
+                   WHERE a.uf = %s
+               ), validos AS (
+                   SELECT * FROM pares
+                   WHERE area_a > 0 AND area_b > 0 AND (inter / area_a >= 0.1 OR inter / area_b >= 0.1)
+               )
+               INSERT INTO sobreposicao_car (uf, cod_imovel, outro, area_ha, pct_proprio, pct_outro)
+               SELECT %s, a, b, inter, inter / area_a, inter / area_b FROM validos
+               UNION ALL
+               SELECT %s, b, a, inter, inter / area_b, inter / area_a FROM validos""",
+            (uf, uf, uf),
+        )
+        pares = cursor.rowcount // 2
+        cursor.execute(
+            """UPDATE indice_imovel SET car_contidos = 0, car_dentro_pct = NULL, car_duplicado = false
+               WHERE uf = %s AND (car_contidos > 0 OR car_dentro_pct IS NOT NULL OR car_duplicado)""",
+            (uf,),
+        )
+        cursor.execute(
+            """UPDATE indice_imovel AS i SET car_contidos = r.contidos, car_dentro_pct = r.dentro,
+                      car_duplicado = r.duplicado
+               FROM (
+                   SELECT s.cod_imovel,
+                          count(*) FILTER (WHERE s.pct_outro >= 0.9) AS contidos,
+                          max(s.pct_proprio) FILTER (WHERE o.tipo IS DISTINCT FROM 'AST') AS dentro,
+                          bool_or(s.pct_proprio >= 0.9 AND s.pct_outro >= 0.9) AS duplicado
+                   FROM sobreposicao_car AS s JOIN indice_imovel AS o ON o.cod_imovel = s.outro
+                   WHERE s.uf = %s GROUP BY s.cod_imovel
+               ) AS r WHERE r.cod_imovel = i.cod_imovel""",
+            (uf,),
+        )
+        imoveis = cursor.rowcount
+    return {"pares": pares, "imoveis": imoveis}
 
 
 def gravar_municipios(conn: psycopg.Connection[Any], uf: str, itens: list[Municipio]) -> None:

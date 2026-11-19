@@ -600,6 +600,18 @@ def imovel(codigo: str) -> dict[str, Any] | None:
             (codigo,),
         ).fetchone()
         estado = conn.execute("SELECT carga_concluida_em FROM sync_estado WHERE uf = %s", (linha["uf"],)).fetchone()
+        sobre_car = conn.execute(
+            """SELECT s.outro AS codigo, round(s.area_ha::numeric, 2) AS area_ha,
+                      round((100 * s.pct_proprio)::numeric, 1) AS pct_deste,
+                      round((100 * s.pct_outro)::numeric, 1) AS pct_do_outro,
+                      o.tipo, o.status, o.condicao, o.area_ha AS area_declarada_outro
+               FROM sobreposicao_car AS s JOIN indice_imovel AS o ON o.cod_imovel = s.outro
+               WHERE s.cod_imovel = %s ORDER BY s.area_ha DESC LIMIT 50""",
+            (codigo,),
+        ).fetchall()
+        total_sobre = conn.execute(
+            "SELECT count(*) AS n FROM sobreposicao_car WHERE cod_imovel = %s", (codigo,)
+        ).fetchone()["n"]
     return {
         **_item(linha, date.today()),
         "no_indice_desde": estado["carga_concluida_em"].date().isoformat() if estado and estado["carga_concluida_em"] else None,
@@ -607,6 +619,14 @@ def imovel(codigo: str) -> dict[str, Any] | None:
             {k: (v.isoformat() if hasattr(v, "isoformat") else v) for k, v in h.items()} for h in historico
         ],
         "area_limite_ha": float(geometria["area"]) if geometria else None,
+        "sobreposicao_car": {
+            "calculada": bool(geometria),
+            "total": total_sobre,
+            "itens": [
+                {k: (float(v) if k.startswith(("area", "pct")) and v is not None else v) for k, v in item.items()}
+                for item in sobre_car
+            ],
+        },
         "condicoes_rotulos": CONDICOES,
         "chamadas_sicar": 0,
     }

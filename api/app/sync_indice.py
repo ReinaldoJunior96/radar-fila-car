@@ -436,7 +436,9 @@ def geometrias_pendentes(conn: Conexao, uf: str) -> bool:
 def finalizar(conn: Conexao, uf: str) -> dict[str, Any]:
     from . import agrupamento  # carregado só na rotina, pois o modelo é pesado
 
+    sobreposicoes = indice.calcular_sobreposicoes_car(conn, uf)
     resultado: dict[str, Any] = indice.recalcular_uf(conn, uf)
+    resultado["sobreposicoes_car"] = sobreposicoes
     conn.commit()
     resultado["agrupamento"] = agrupamento.agrupar(conn, uf)
     conn.commit()
